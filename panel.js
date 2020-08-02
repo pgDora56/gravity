@@ -264,13 +264,19 @@ function fn_rec(no){
         saveData += "," + tarr[i];
     }
 
-    var data = fb.GetNowPlaying();
-    handle.Add(data);
-    handle.UpdateFileInfoFromJSON(
-        JSON.stringify({
-            'RECORD_TIME' : saveData
-        })
-    );
+    if(isSpotify){
+        spotifySettingFileWrite(fb.GetNowPlaying().Path, fb.TitleFormat("%tracknumber%").Eval(), "RECORD_TIME", saveData);
+        spotRecordTime = saveData;
+    }
+    else{
+        var data = fb.GetNowPlaying();
+        handle.Add(data);
+        handle.UpdateFileInfoFromJSON(
+            JSON.stringify({
+                'RECORD_TIME' : saveData
+            })
+        );
+    }
     setTimeout(function(){
         window.Repaint();
     }, 1000);

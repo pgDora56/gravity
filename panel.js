@@ -23,6 +23,58 @@ var img_path = rootDirectory + "img/";
 //
 var savedata_root_path = rootDirectory + "history/"; 
 
+// =================================================
+//
+// Property周り
+//
+//
+
+// 各初期値
+//
+var minPercent = 10; var maxPercent = 90; // Rantroのスタート位置
+var mixIntroRatio = 1; var mixRantroRatio = 1; // Mixの比率
+var outroLocation = 15; // Outroのスタート位置
+
+//  Propertyを受け取る
+var rantro_percent = window.GetProperty("1. Rantro - StartLocationRange", "10-90");
+var get_mix_percent = window.GetProperty("2. Mix Ratio - Intro:Rantro", "1:1");
+var get_outro_location = window.GetProperty("3. Outro - StartLocation", "15");
+
+// チェック＆必要に応じてパース
+//   Rantroのスタート位置
+try{
+    var pers = rantro_percent.split('-');
+    if(pers.length != 2) throw "Rantro StartLocation's value is invalid";
+    minPercent = parseInt(pers[0]);
+    maxPercent = parseInt(pers[1]);
+}
+catch(e){
+    consoleWrite(e);
+    maxPercent = 90;
+    minPercent = 10;
+}
+
+//   Mixの比率
+try{
+    var pers = get_mix_percent.split(':');
+    if(pers.length != 2) throw "Mix Ratio's value is invalid";
+    mixIntroRatio = parseInt(pers[0]);
+    mixRantroRatio = parseInt(pers[1]);
+}
+catch(e){
+    consoleWrite(e);
+    mixIntroRatio = mixRantroRatio = 1;
+}
+
+//   Outroの開始位置
+try{
+    outroLocation = parseInt(get_outro_location);
+}
+catch(e){
+    consoleWrite(e);
+    outroLocation = 15;
+}
+
 
 // ==========================================
 //
@@ -34,6 +86,7 @@ var display = [{format:"", font:{family: "Meiryo UI", size:10, color:[0,0,0]}}];
 var defaultfont = {family: "Meiryo UI", size:10, color:[0,0,0]};
 var gravity = "none";
 var isSpotify = false;
+var mode = 0; // 0 -> Intro, 1 -> Rantro, 2 -> Mix, 3 -> Outro
 var spotRecordTime = "";
 var judgeFormat = "[%program% - ]%title%[ / %artist%][ - %type%][ - $if2(%work_year%,%date%)]";
 var xhr = new ActiveXObject("Microsoft.XMLHTTP"); 
@@ -77,14 +130,15 @@ function on_paint(gr){
     //
     var headerH = paintHeader(gr);
     if(gravity == "top") totalHeight = headerH + 5;
+    else if(gravity == "bottom") totalHeight = 5;
 
     // 本体の描画
     //
     partsHeight = (window.Height - headerH) / display_num;
     for(var i = 0; i < display_num; i++){
-        display = jsonData.display[i];
-        if(gravity == "top") paintTop(gr, display, i);
-        else paintMain(gr, display, headerH, i);
+        if(gravity == "top") paintTop(gr, jsonData.display[i], i);
+        else if(gravity == "bottom") paintBottom(gr, jsonData.display[display_num - 1 - i], display_num - 1 - i);
+        else paintMain(gr, jsonData.display[i], headerH, i);
     }
 }
 
@@ -97,30 +151,43 @@ function on_playback_new_track(){
     if(isSpotify){
         spotRecordTime = spotifySettingFileLoad(nowPlayPath, fb.TitleFormat("%tracknumber%").Eval(), "RECORD_TIME");
     }
+
+    switch(mode){
+        case 1: // Rantro
+            fb.PlaybackTime = getRantroLocation();
+            break;
+        case 2: // Mix
+            fb.PlaybackTime = getMixLocation();
+            break;
+        case 3: // Outro
+            fb.PlaybackTime = fb.PlaybackLength - outroLocation;
+            break;
+    }
+    consoleWrite(fb.PlaybackTime);
 }
 
 function on_key_down(vkey) {
-    // consoleWrite("vkey: " + vkey); // For debug
+    consoleWrite("vkey: " + vkey); // For debug
 
-    if(vkey == 65 && expertKeyOperation || vkey == 37) {
-        // Push Left or Push A (ExpertKeyOperation Mode)
+    if(vkey == 65 || vkey == 72) {
+        // Push Left / H
         // Previous
         fb.Prev();
         fb.Pause();
     }
-    else if(vkey == 87 && expertKeyOperation || vkey == 38) {
-        // Push Up or Push W (ExpertKeyOperation Mode)
+    else if(vkey == 87 || vkey == 75) {
+        // Push Up / K
        // Sabi
         fn_gorec();
     }
-    else if(vkey == 68 && expertKeyOperation || vkey == 39) {
-        // Push Right or Push D (ExpertKeyOperation Mode)
+    else if(vkey == 68 || vkey == 76) {
+        // Push Right / L
         // Next
         fb.Next();
         fb.Pause();
     }
-    else if(vkey == 83 && expertKeyOperation || vkey == 40) {
-        // Push Down or Push S (ExpertKeyOperation Mode)
+    else if(vkey == 83 || vkey == 74) {
+        // Push Down / J
         // Play & Pause
         if(fb.IsPlaying){
             fb.Pause();
@@ -128,6 +195,12 @@ function on_key_down(vkey) {
         else{
             fb.Play();
         }
+    }
+    else if(vkey == 77) {
+        // Mode change
+        mode = (mode + 1) % 4;
+        consoleWrite(mode);
+        window.Repaint();
     }
     else if(48 <= vkey && vkey <= 57){
         // Push Number key
@@ -137,8 +210,21 @@ function on_key_down(vkey) {
         var number = vkey - 112;
         fn_rec(number + 1);
     }
+    else if(vkey == 222) {
+        // Push Caret(^)
+        fb.PlaybackTime = 0;
+    }
 }
 
+// =======================================
+
+// 
+// Other Functions
+//
+
+// 記録箇所に移動する
+// @param no 記録の通し番号(int)
+//
 function fn_gorec(no){
     if(no==undefined) no = 1;
     if(no==0) no = 10;
@@ -160,6 +246,9 @@ function fn_gorec(no){
     }
 }
 
+// 現在再生している箇所を記録する
+// @param no 記録する通し番号(int)
+//
 function fn_rec(no){
     if(no == undefined) no = 1;
     no -= 1;
@@ -187,6 +276,9 @@ function fn_rec(no){
     }, 1000);
 }
 
+// 現在再生中の楽曲の記録箇所をarrayで指定する。
+// @return 記録箇所のArray(array<int>)
+//
 function rec_to_array(){
     var time = (isSpotify) ? spotRecordTime : fb.TitleFormat("%RECORD_TIME%").Eval();
     if(time=="?"){
@@ -199,6 +291,11 @@ function rec_to_array(){
     return arr;
 }
 
+// デフォルトの形式でパネルのメイン部分の行を描画する
+// @param gr GdiGraphics
+// @param display 表示する部分の内容
+// @param headerH ヘッダの高さ(float)
+// @param i 何ブロック目か(int)
 function paintMain(gr, display, headerH, i) {
     var sublineHeight = 0;
     if(display.subline != undefined){
@@ -213,6 +310,10 @@ function paintMain(gr, display, headerH, i) {
     gr.FillSolidRect(5, headerH + partsHeight * i + 4, 3, sublineHeight + mainHeight - 8, headerColors[i%5]);
 }
 
+// 上側へ寄せた状態でパネルのメイン部分を描画する
+// @param gr GdiGraphics
+// @param display 表示する部分の内容
+// @param i 何ブロック目か(int)
 function paintTop(gr, display, i) {
     var prevTotalHeight = totalHeight;
     if(display.subline != undefined){
@@ -228,6 +329,30 @@ function paintTop(gr, display, i) {
     totalHeight += mainHeight + 15;
 }
 
+// 下側へ寄せた状態でパネルのメイン部分を描画する
+// @param gr GdiGraphics
+// @param display 表示する部分の内容
+// @param i 何ブロック目か(int)
+function paintBottom(gr, display, i) {
+    var prevTotalHeight = totalHeight;
+
+    var mainHeight = gr.MeasureString(fb.TitleFormat(display.format).Eval(), fnt(display.font), leftMargin, 0, window.Width - leftMargin, 10000, 0).Height;
+    totalHeight += mainHeight + 1;
+    gr.DrawString(fb.TitleFormat(display.format).Eval(), fnt(display.font), fntclr(display.font), leftMargin, window.Height - totalHeight, window.Width - leftMargin, mainHeight+1, 0);
+
+    if(display.subline != undefined){
+        var subfnt = fntToSub(display.font, display.subline.font);
+        var subclr = RGB(subfnt.color[0],subfnt.color[1],subfnt.color[2]);
+        var ms = gr.MeasureString(fb.TitleFormat(display.subline.format).Eval(), fnt(subfnt), leftMargin, 0 , window.Width - leftMargin, 10000, 0);
+        totalHeight += ms.Height + 1;
+        gr.DrawString(fb.TitleFormat(display.subline.format).Eval(), fnt(subfnt), subclr, leftMargin, window.Height - totalHeight, window.Width - leftMargin, ms.Height+1, 0);
+    }
+    gr.FillSolidRect(5, window.Height - totalHeight + 4, 3, ms.Height + mainHeight - 8, headerColors[i%5]);
+    totalHeight += 15;
+}
+
+// ヘッダを描画する
+// @param gr GdiGraphics
 function paintHeader(gr){
     var tText = makeTopText();
     var headerMeasure = gr.MeasureString(tText, fnt(jsonData.header.font), 0,0,window.Width,10000,0);
@@ -238,16 +363,51 @@ function paintHeader(gr){
     return headerH;
 }
 
+// ヘッダに表示する内容を生成する
+// @return ヘッダに表示する内容(string)
 function makeTopText(){
+    // プレイリスト名＆何曲目か/プレイリスト総曲数
     var playing_item_location = plman.GetPlayingItemLocation();
     var topText = plman.GetPlaylistName(playing_item_location.PlaylistIndex); // Playlist Name
-    if(fb.IsPlaying) topText += ' [' + (playing_item_location.PlaylistItemIndex + 1) + "/" + plman.PlaylistItemCount(plman.PlayingPlaylist) + ']'; // 何曲目か/プレイリスト総曲数
+    if(fb.IsPlaying) topText += ' [' + (playing_item_location.PlaylistItemIndex + 1) + "/" + plman.PlaylistItemCount(plman.PlayingPlaylist) + ']'; 
+
+    // Rantro, Mix, Outroの場合は記載
+    switch(mode){
+        case 1: // Rantro
+            topText += " // Rantro>>" + minPercent + "%~" + maxPercent + "% ";
+            break
+        case 2: // Mix
+            topText += " // Mix>>I:R(" + minPercent + "%~" + maxPercent + "%)=" + mixIntroRatio + ":" + mixRantroRatio + " ";
+            break
+        case 3: // Outro
+            topText += " // Outro>>" + outroLocation + "sec before the end ";
+            break;
+    }
+
+    // RECORD_TIMEまわり
     var rec = (isSpotify) ? spotRecordTime : fb.TitleFormat("[%RECORD_TIME%]").Eval();
     if(rec == "") return topText; 
     topText += ' // REC:' + rec.replace(/-1/g, "-");
     return topText;
 }
 
+// Mixモード時の開始位置を取得する
+// @return 開始位置(float)
+function getMixLocation() {
+    var r = Math.random() * (mixIntroRatio + mixRantroRatio);
+    return (r < mixIntroRatio) ? 0 : getRantroLocation();
+}
+
+// Rantroモード時の開始位置を取得する
+// @return 開始位置(float)
+function getRantroLocation() {
+    return fb.PlaybackLength * (minPercent + Math.random() * (maxPercent - minPercent)) / 100;
+}
+
+// サブ行のフォント設定を適用させる
+// @param main メイン行のフォント設定
+// @param sub サブ行で特別に指定されたフォント設定
+// @return 適用するフォント設定
 function fntToSub(main, sub){
     var newfnt = {};
     var fields = ["family", "size", "style", "color"];
@@ -277,6 +437,11 @@ function fntToSub(main, sub){
     return newfnt;
 }
 
+// フォントとフォントサイズからGdiFontを生成する
+// @param font フォント名(Array)
+// @param size フォントサイズ(int)
+// @return GdiFont
+//
 function fnt(font,size) {
     // 1..Bold 2..Italic(英字のみ？) 4..underline 8..breakline
     // 組み合わせるときは足す
@@ -305,6 +470,9 @@ function fnt(font,size) {
     return gdi.Font(font.family, font.size, style);
 }
 
+// フォントから色を抽出する
+// @param font フォント
+// @return 色情報(RGB)
 function fntclr(font) {
     var clr = RGB(defaultfont.color[0], defaultfont.color[1], defaultfont.color[2]); 
     try{

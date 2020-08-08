@@ -86,6 +86,7 @@ var display = [{format:"", font:{family: "Meiryo UI", size:10, color:[0,0,0]}}];
 var defaultfont = {family: "Meiryo UI", size:10, color:[0,0,0]};
 var gravity = "none";
 var isSpotify = false;
+var have_focus = false;
 var mode = 0; // 0 -> Intro, 1 -> Rantro, 2 -> Mix, 3 -> Outro
 var spotRecordTime = "";
 var judgeFormat = "[%program% - ]%title%[ / %artist%][ - %type%][ - $if2(%work_year%,%date%)]";
@@ -134,6 +135,8 @@ function on_paint(gr){
 
     // 本体の描画
     //
+    var hcolor = jsonData.header.color;
+    if(have_focus) gr.FillSolidRect(0, headerH, window.Width, window.Height - headerH, RGB((hcolor[0]+255*2)/3,(hcolor[1]+255*2)/3,(hcolor[2]+255*2)/3));
     partsHeight = (window.Height - headerH) / display_num;
     for(var i = 0; i < display_num; i++){
         if(gravity == "top") paintTop(gr, jsonData.display[i], i);
@@ -142,6 +145,10 @@ function on_paint(gr){
     }
 }
 
+function on_focus(is_focused){
+    have_focus = is_focused;
+    window.Repaint();
+}
 
 function on_playback_new_track(){
     window.Repaint();
@@ -169,24 +176,24 @@ function on_playback_new_track(){
 function on_key_down(vkey) {
     consoleWrite("vkey: " + vkey); // For debug
 
-    if(vkey == 65 || vkey == 72) {
+    if(vkey == 37 || vkey == 72) {
         // Push Left / H
         // Previous
         fb.Prev();
         fb.Pause();
     }
-    else if(vkey == 87 || vkey == 75) {
+    else if(vkey == 38 || vkey == 75) {
         // Push Up / K
        // Sabi
         fn_gorec();
     }
-    else if(vkey == 68 || vkey == 76) {
+    else if(vkey == 39 || vkey == 76) {
         // Push Right / L
         // Next
         fb.Next();
         fb.Pause();
     }
-    else if(vkey == 83 || vkey == 74) {
+    else if(vkey == 40 || vkey == 74) {
         // Push Down / J
         // Play & Pause
         if(fb.IsPlaying){
@@ -204,7 +211,7 @@ function on_key_down(vkey) {
     }
     else if(48 <= vkey && vkey <= 57){
         // Push Number key
-        fn_gorec(number);
+        fn_gorec(vkey-48);
     }
     else if(112 <= vkey && vkey <= 121) {
         var number = vkey - 112;
@@ -457,10 +464,10 @@ function fnt(font,size) {
     }
     else{
         if(font.family == undefined){
-            font.family = jsonData.defaultfont.family;
+            font.family = defaultfont.family;
         }
         if(font.size == undefined){
-            font.size = jsonData.defaultfont.size;
+            font.size = defaultfont.size;
         }
     }
     if(size==undefined) {

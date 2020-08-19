@@ -113,6 +113,7 @@ xhr.send(null);
 
 include(`${fb.ComponentPath}docs\\Flags.js`);
 include(`${fb.ComponentPath}docs\\Helpers.js`);
+include(`common.js`);
 
 //==============================================
 
@@ -133,10 +134,15 @@ function on_paint(gr){
     if(gravity == "top") totalHeight = headerH + 5;
     else if(gravity == "bottom") totalHeight = 5;
 
-    // 本体の描画
-    //
+    // 下塗り
     var hcolor = jsonData.header.color;
     if(have_focus) gr.FillSolidRect(0, headerH, window.Width, window.Height - headerH, RGB((hcolor[0]+255*2)/3,(hcolor[1]+255*2)/3,(hcolor[2]+255*2)/3));
+
+    // アルバムアートワークの描画
+    paintArtwork(gr, headerH);
+
+    // 本体の描画
+    //
     partsHeight = (window.Height - headerH) / display_num;
     for(var i = 0; i < display_num; i++){
         if(gravity == "top") paintTop(gr, jsonData.display[i], i);
@@ -155,6 +161,7 @@ function on_playback_new_track(){
     var nowPlayPath = fb.GetNowPlaying().Path;
     isSpotify = nowPlayPath.startsWith("spotify");
     consoleWrite("IsSpotify:" + isSpotify);
+    setClipboard(get_tf());
     if(isSpotify){
         spotRecordTime = spotifySettingFileLoad(nowPlayPath, fb.TitleFormat("%tracknumber%").Eval(), "RECORD_TIME");
     }
@@ -221,6 +228,10 @@ function on_key_down(vkey) {
         // Push Caret(^)
         fb.PlaybackTime = 0;
     }
+}
+
+function on_main_menu(idx){
+    addManyLocation();
 }
 
 // =======================================
@@ -304,105 +315,7 @@ function rec_to_array(){
     return arr;
 }
 
-// デフォルトの形式でパネルのメイン部分の行を描画する
-// @param gr GdiGraphics
-// @param display 表示する部分の内容
-// @param headerH ヘッダの高さ(float)
-// @param i 何ブロック目か(int)
-function paintMain(gr, display, headerH, i) {
-    var sublineHeight = 0;
-    if(display.subline != undefined){
-        var subfnt = fntToSub(display.font, display.subline.font);
-        var subclr = RGB(subfnt.color[0],subfnt.color[1],subfnt.color[2]);
-        var ms = gr.MeasureString(fb.TitleFormat(display.subline.format).Eval(), fnt(subfnt), leftMargin, headerH + partsHeight * i, window.Width - leftMargin, 10000, 0);
-        gr.DrawString(fb.TitleFormat(display.subline.format).Eval(), fnt(subfnt), subclr, leftMargin, headerH + partsHeight * i, window.Width - leftMargin, ms.Height+1, 0);
-        sublineHeight = ms.Height;
-    }
-    var mainHeight = gr.MeasureString(fb.TitleFormat(display.format).Eval(), fnt(display.font), leftMargin, headerH + partsHeight * i + sublineHeight, window.Width - leftMargin, partsHeight - sublineHeight, 0).Height;
-    gr.DrawString(fb.TitleFormat(display.format).Eval(), fnt(display.font), fntclr(display.font), leftMargin, headerH + partsHeight * i + sublineHeight, window.Width - leftMargin, mainHeight+1, 0);
-    gr.FillSolidRect(5, headerH + partsHeight * i + 4, 3, sublineHeight + mainHeight - 8, headerColors[i%5]);
-}
-
-// 上側へ寄せた状態でパネルのメイン部分を描画する
-// @param gr GdiGraphics
-// @param display 表示する部分の内容
-// @param i 何ブロック目か(int)
-function paintTop(gr, display, i) {
-    var prevTotalHeight = totalHeight;
-    if(display.subline != undefined){
-        var subfnt = fntToSub(display.font, display.subline.font);
-        var subclr = RGB(subfnt.color[0],subfnt.color[1],subfnt.color[2]);
-        var ms = gr.MeasureString(fb.TitleFormat(display.subline.format).Eval(), fnt(subfnt), leftMargin, totalHeight, window.Width - leftMargin, 10000, 0);
-        gr.DrawString(fb.TitleFormat(display.subline.format).Eval(), fnt(subfnt), subclr, leftMargin, totalHeight, window.Width - leftMargin, ms.Height+1, 0);
-        totalHeight += ms.Height + 1;
-    }
-    var mainHeight = gr.MeasureString(fb.TitleFormat(display.format).Eval(), fnt(display.font), leftMargin, totalHeight, window.Width - leftMargin, 10000, 0).Height;
-    gr.DrawString(fb.TitleFormat(display.format).Eval(), fnt(display.font), fntclr(display.font), leftMargin, totalHeight, window.Width - leftMargin, mainHeight+1, 0);
-    gr.FillSolidRect(5, prevTotalHeight + 4, 3, ms.Height + mainHeight - 8, headerColors[i%5]);
-    totalHeight += mainHeight + 15;
-}
-
-// 下側へ寄せた状態でパネルのメイン部分を描画する
-// @param gr GdiGraphics
-// @param display 表示する部分の内容
-// @param i 何ブロック目か(int)
-function paintBottom(gr, display, i) {
-    var prevTotalHeight = totalHeight;
-
-    var mainHeight = gr.MeasureString(fb.TitleFormat(display.format).Eval(), fnt(display.font), leftMargin, 0, window.Width - leftMargin, 10000, 0).Height;
-    totalHeight += mainHeight + 1;
-    gr.DrawString(fb.TitleFormat(display.format).Eval(), fnt(display.font), fntclr(display.font), leftMargin, window.Height - totalHeight, window.Width - leftMargin, mainHeight+1, 0);
-
-    if(display.subline != undefined){
-        var subfnt = fntToSub(display.font, display.subline.font);
-        var subclr = RGB(subfnt.color[0],subfnt.color[1],subfnt.color[2]);
-        var ms = gr.MeasureString(fb.TitleFormat(display.subline.format).Eval(), fnt(subfnt), leftMargin, 0 , window.Width - leftMargin, 10000, 0);
-        totalHeight += ms.Height + 1;
-        gr.DrawString(fb.TitleFormat(display.subline.format).Eval(), fnt(subfnt), subclr, leftMargin, window.Height - totalHeight, window.Width - leftMargin, ms.Height+1, 0);
-    }
-    gr.FillSolidRect(5, window.Height - totalHeight + 4, 3, ms.Height + mainHeight - 8, headerColors[i%5]);
-    totalHeight += 15;
-}
-
-// ヘッダを描画する
-// @param gr GdiGraphics
-function paintHeader(gr){
-    var tText = makeTopText();
-    var headerMeasure = gr.MeasureString(tText, fnt(jsonData.header.font), 0,0,window.Width,10000,0);
-    var headerH = headerMeasure.Height + 2;
-    var hcolor = jsonData.header.color;
-    gr.FillSolidRect(0,0,window.Width,headerMeasure.Height,RGB(hcolor[0], hcolor[1], hcolor[2]));
-    gr.DrawString(tText, fnt(jsonData.header.font), fntclr(jsonData.header.font), 0, 0, window.Width, headerH, 0);
-    return headerH;
-}
-
-// ヘッダに表示する内容を生成する
-// @return ヘッダに表示する内容(string)
-function makeTopText(){
-    // プレイリスト名＆何曲目か/プレイリスト総曲数
-    var playing_item_location = plman.GetPlayingItemLocation();
-    var topText = plman.GetPlaylistName(playing_item_location.PlaylistIndex); // Playlist Name
-    if(fb.IsPlaying) topText += ' [' + (playing_item_location.PlaylistItemIndex + 1) + "/" + plman.PlaylistItemCount(plman.PlayingPlaylist) + ']'; 
-
-    // Rantro, Mix, Outroの場合は記載
-    switch(mode){
-        case 1: // Rantro
-            topText += " // Rantro>>" + minPercent + "%~" + maxPercent + "% ";
-            break
-        case 2: // Mix
-            topText += " // Mix>>I:R(" + minPercent + "%~" + maxPercent + "%)=" + mixIntroRatio + ":" + mixRantroRatio + " ";
-            break
-        case 3: // Outro
-            topText += " // Outro>>" + outroLocation + "sec before the end ";
-            break;
-    }
-
-    // RECORD_TIMEまわり
-    var rec = (isSpotify) ? spotRecordTime : fb.TitleFormat("[%RECORD_TIME%]").Eval();
-    if(rec == "") return topText; 
-    topText += ' // REC:' + rec.replace(/-1/g, "-");
-    return topText;
-}
+include(`paint.js`);
 
 // Mixモード時の開始位置を取得する
 // @return 開始位置(float)
@@ -495,51 +408,27 @@ function fntclr(font) {
     return clr;
 }
 
-function spotifySettingFileWrite(loc, track, idx, content) {
-    var filename = rootDirectory + "spotify\\" + loc.slice(8).replace(":", "-") + "-" + track + ".txt";
-    var rewriteLine = idx + "|" + content;
-    try{
-        old = utils.ReadTextFile(filename);
-        params = old.split('\n');
-        rewrite = false;
-        for(i=0; i<params.length; i++){
-            if(params[i].startsWith(idx + "|")){
-                consoleWrite(filename + ": " + params[i] + "->" + content);
-                params[i] = rewriteLine;
-                rewrite = true;
-                break;
-            }
-        }
-        if(!rewrite){
-            params.push(rewriteLine);
-        }
-    }
-    catch{
-        consoleWrite("New spotSetting: " + filename);
-        params = [rewriteLine];
-    }
-    finally{
-        utils.WriteTextFile(filename, params.join("\n"));
-        consoleWrite("spotSetting write:" + filename );
-    }
+function addManyLocation() {
+    var enter = getClipboard();
+    var lines = enter.split('\n');
+    var datas = lines.map(x => x.replace("\n", "").replace("\r",""));
+    consoleWrite(lines);
+    consoleWrite(datas);
+    plman.AddLocations(plman.ActivePlaylist, datas);
 }
 
-function spotifySettingFileLoad(loc, track, idx){
-    try{
-        var filename = rootDirectory + "spotify\\" + loc.slice(8).replace(":", "-") + "-" + track + ".txt";
-        old = utils.ReadTextFile(filename);
-        params = old.split('\n');
-        rewrite = false;
-        for(i=0; i<params.length; i++){
-            if(params[i].startsWith(idx + "|")){
-                param = params[i].replace("\n", "").replace("\r","").split("|");
-                return param[1];
-            }
+// Title Formattingに従って楽曲情報を取得する
+// @param tf TitleFormatting
+// @param handle Handle
+// @return 楽曲情報(string)
+function get_tf(tf, handle){
+    if(tf==undefined) tf = judgeFormat;
+    if(handle==undefined){
+        if (fb.GetNowPlaying()){
+            return fb.TitleFormat(tf).Eval();
         }
     }
-    catch{
-        consoleWrite("Spotify Setting File isn't found");
+    else{
+        return fb.TitleFormat(tf).EvalWithMetadb(handle);
     }
-    return "";
 }
-

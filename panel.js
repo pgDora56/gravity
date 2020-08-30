@@ -81,6 +81,7 @@ catch(e){
 //   Ultimate-modeオートストップ
 try{
     ultimateAutoStop = parseInt(get_ultimate_auto_stop);
+    if(ultimateAutoStop <= 0) ultimateAutoStop = 30;
 }
 catch(e){
     consoleWrite(e);
@@ -137,12 +138,12 @@ var headerColors = [];
 var leftMargin = 15;
 var start_position = 0; // ultimate-mode用
 var remain = 417; // ultimate-mode用
-var timer = -1; // ultimate-mode用
+var ultimate_timer = ultimateAutoStop * 60; // ultimate-mode用
 var message_window = "";
 function on_paint(gr){
     var display_num = jsonData.display.length;
     headerColors = [RGB(215, 0, 58), RGB(0,123,187), RGB(240,131,0), RGB(195,216,37), RGB(116,50,92)];
-    consoleWrite("Panel is repainted. -- Height: " + window.Height + " // Width: " + window.Width + " // Item: " + display_num);
+    // consoleWrite("Panel is repainted. -- Height: " + window.Height + " // Width: " + window.Width + " // Item: " + display_num); // For debug
 
     // メイン部の下塗り
     //
@@ -184,15 +185,20 @@ function on_focus(is_focused){
 function on_playback_time(time){
     // 再生時に毎秒呼ばれる
     if(!is_ultimate) return; // Ultimate-modeでなければearly return
-    if(remain == -5) {
+    if(remain <= -5) {
+        if(ultimate_timer <= 0) {
+            // 時間が来てたら何もしない
+            return;
+        }
         fb.Next();
     }
+    ultimate_timer--;
     calc_ultimate_remain(time);
 }
 
 function calc_ultimate_remain(time){
     remain =  Math.floor(jsonData.ultimate.maxiplay - (time - start_position));
-    if(remain <= -2) message_window = (remain + 5);
+    if(remain <= -2 && 5+remain < ultimate_timer) message_window = (remain + 5);
     else if(remain <= 0) message_window = "";
     else message_window = remain;
 
@@ -257,6 +263,15 @@ function on_key_down(vkey) {
         else{
             fb.Play();
         }
+    }
+    else if(vkey == 32 || vkey == 68) {
+        // Push Space / D
+        // Ultimate-mode - Show songdata
+        start_position = fb.PlaybackTime - jsonData.ultimate.maxiplay;
+    }
+    else if(vkey == 82) {
+        // ultimate_timeをリセットさせる
+        ultimate_timer = ultimateAutoStop * 60; // ultimate-mode用
     }
     else if(vkey == 77) {
         // Mode change

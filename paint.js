@@ -104,6 +104,14 @@ function paintArtwork(gr, headerH){
 // @return ヘッダに表示する内容(string)
 function makeTopText(){
     // プレイリスト名＆何曲目か/プレイリスト総曲数
+    if(is_ultimate){
+        // Ultimate-modeのときは残り時間を表示
+        if(ultimate_timer <= 0) return "Additional time";
+        let min = Math.floor(ultimate_timer / 60);
+        let sec = ultimate_timer % 60;
+        return "Remain -> " + min + ":" + ((sec < 10) ? "0" : "") + sec;
+    }
+
     var playing_item_location = plman.GetPlayingItemLocation();
     var topText = plman.GetPlaylistName(playing_item_location.PlaylistIndex); // Playlist Name
     if(fb.IsPlaying) topText += ' [' + (playing_item_location.PlaylistItemIndex + 1) + "/" + plman.PlaylistItemCount(plman.PlayingPlaylist) + ']'; 
@@ -133,14 +141,12 @@ function makeTopText(){
 // @param gr GdiGraphics
 // @param msg 表示する文字列(string)
 function paintMessage(gr, msg) {
-    consoleWrite("Call paintmessage: " + msg);
     var messageMeasure = gr.MeasureString(msg, fnt(jsonData.ultimate.font), 0,0,window.Width,10000,0);
     let w = messageMeasure.Width * 2;
     let h = messageMeasure.Height * 2;
     if(w<h) w = h;
     let left = window.Width / 2 - w / 2;
     let up = window.Height / 2 - h / 2;
-    consoleWrite(w + " " + h + " " + left + " " + up);
 
     gr.FillEllipse(left + w / 10, up + h / 10, w, h, RGB(200,200,200));
     gr.FillEllipse(left, up, w, h, RGB(255,255,255));

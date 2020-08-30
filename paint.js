@@ -65,12 +65,16 @@ function paintHeader(gr){
     var tText = makeTopText();
     var headerMeasure = gr.MeasureString(tText, fnt(jsonData.header.font), 0,0,window.Width,10000,0);
     var headerH = headerMeasure.Height + 2;
+    if(headerH < 3) headerH = gr.MeasureString("Shiina", fnt(jsonData.header.font), 0,0,window.Width,10000,0).Height + 2;
     var hcolor = jsonData.header.color;
-    gr.FillSolidRect(0,0,window.Width,headerMeasure.Height,RGB(hcolor[0], hcolor[1], hcolor[2]));
+    gr.FillSolidRect(0,0,window.Width,headerH-2,RGB(hcolor[0], hcolor[1], hcolor[2]));
     gr.DrawString(tText, fnt(jsonData.header.font), fntclr(jsonData.header.font), 0, 0, window.Width, headerH, 0);
     return headerH;
 }
 
+// アートワークを描画する
+// @param gr GdiGraphics
+// @param headerH ヘッダの高さ
 function paintArtwork(gr, headerH){
     try{
         var img = utils.GetAlbumArtV2(fb.GetNowPlaying());
@@ -123,3 +127,24 @@ function makeTopText(){
     topText += ' // REC:' + rec.replace(/-1/g, "-");
     return topText;
 }
+
+// 任意のメッセージを中央に表示するパネルを出現させる
+// Ultimate-modeで主に使用
+// @param gr GdiGraphics
+// @param msg 表示する文字列(string)
+function paintMessage(gr, msg) {
+    consoleWrite("Call paintmessage: " + msg);
+    var messageMeasure = gr.MeasureString(msg, fnt(jsonData.ultimate.font), 0,0,window.Width,10000,0);
+    let w = messageMeasure.Width * 2;
+    let h = messageMeasure.Height * 2;
+    if(w<h) w = h;
+    let left = window.Width / 2 - w / 2;
+    let up = window.Height / 2 - h / 2;
+    consoleWrite(w + " " + h + " " + left + " " + up);
+
+    gr.FillEllipse(left + w / 10, up + h / 10, w, h, RGB(200,200,200));
+    gr.FillEllipse(left, up, w, h, RGB(255,255,255));
+    gr.DrawEllipse(left, up, w, h, 2, RGB(0,0,0));
+    gr.DrawString(msg, fnt(jsonData.ultimate.font), fntclr(jsonData.ultimate.font), (window.Width - messageMeasure.Width) / 2, (window.Height- messageMeasure.Height) / 2, w, h, 0);
+}
+

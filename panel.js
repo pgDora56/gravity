@@ -34,11 +34,14 @@ var savedata_root_path = rootDirectory + "history/";
 var minPercent = 10; var maxPercent = 90; // Rantroのスタート位置
 var mixIntroRatio = 1; var mixRantroRatio = 1; // Mixの比率
 var outroLocation = 15; // Outroのスタート位置
+var ultimateAutoStop = 30; // Ultimate-modeのとき何分で止めるか
 
 //  Propertyを受け取る
 var rantro_percent = window.GetProperty("1. Rantro - StartLocationRange", "10-90");
 var get_mix_percent = window.GetProperty("2. Mix Ratio - Intro:Rantro", "1:1");
 var get_outro_location = window.GetProperty("3. Outro - StartLocation", "15");
+var is_ultimate  = window.GetProperty("4.1. Ultimate mode - Enable", false);
+var get_ultimate_auto_stop = window.GetProperty("4.2. Ultimate mode - Auto stop(min)", "30");
 
 // チェック＆必要に応じてパース
 //   Rantroのスタート位置
@@ -73,6 +76,15 @@ try{
 catch(e){
     consoleWrite(e);
     outroLocation = 15;
+}
+
+//   Ultimate-modeオートストップ
+try{
+    ultimateAutoStop = parseInt(get_ultimate_auto_stop);
+}
+catch(e){
+    consoleWrite(e);
+    ultimateAutoStop = 30;
 }
 
 
@@ -123,10 +135,19 @@ include(`common.js`);
 
 var headerColors = [];
 var leftMargin = 15;
+var start_position = 0; // ultimate-mode用
+var remain = 417; // ultimate-mode用
+var timer = -1; // ultimate-mode用
+var message_window = "";
 function on_paint(gr){
     var display_num = jsonData.display.length;
     headerColors = [RGB(215, 0, 58), RGB(0,123,187), RGB(240,131,0), RGB(195,216,37), RGB(116,50,92)];
     consoleWrite("Panel is repainted. -- Height: " + window.Height + " // Width: " + window.Width + " // Item: " + display_num);
+
+    // メイン部の下塗り
+    //
+    var hcolor = jsonData.header.color;
+    if(have_focus) gr.FillSolidRect(0, headerH, window.Width, window.Height - headerH, RGB((hcolor[0]+255*2)/3,(hcolor[1]+255*2)/3,(hcolor[2]+255*2)/3));
 
     // ヘッダ部の描画
     //
@@ -134,11 +155,15 @@ function on_paint(gr){
     if(gravity == "top") totalHeight = headerH + 5;
     else if(gravity == "bottom") totalHeight = 5;
 
-    // 下塗り
-    var hcolor = jsonData.header.color;
-    if(have_focus) gr.FillSolidRect(0, headerH, window.Width, window.Height - headerH, RGB((hcolor[0]+255*2)/3,(hcolor[1]+255*2)/3,(hcolor[2]+255*2)/3));
+    // MessageWindowの調整
+    if(message_window != "") {
+        // message_windowがあればそちらを描画してReturn
+        paintMessage(gr, message_window);
+        if(remain > 0) return;
+    }
 
     // アルバムアートワークの描画
+    //
     paintArtwork(gr, headerH);
 
     // 本体の描画
@@ -156,12 +181,31 @@ function on_focus(is_focused){
     window.Repaint();
 }
 
+function on_playback_time(time){
+    // 再生時に毎秒呼ばれる
+    if(!is_ultimate) return; // Ultimate-modeでなければearly return
+    if(remain == -5) {
+        fb.Next();
+    }
+    calc_ultimate_remain(time);
+}
+
+function calc_ultimate_remain(time){
+    remain =  Math.floor(jsonData.ultimate.maxiplay - (time - start_position));
+    if(remain <= -2) message_window = (remain + 5);
+    else if(remain <= 0) message_window = "";
+    else message_window = remain;
+
+    window.Repaint();
+}
+
 function on_playback_new_track(){
     window.Repaint();
     var nowPlayPath = fb.GetNowPlaying().Path;
     isSpotify = nowPlayPath.startsWith("spotify");
     consoleWrite("IsSpotify:" + isSpotify);
-    setClipboard(get_tf());
+    let tf = get_tf();
+    setClipboard(tf);
     if(isSpotify){
         spotRecordTime = spotifySettingFileLoad(nowPlayPath, fb.TitleFormat("%tracknumber%").Eval(), "RECORD_TIME");
     }
@@ -177,7 +221,11 @@ function on_playback_new_track(){
             fb.PlaybackTime = fb.PlaybackLength - outroLocation;
             break;
     }
-    consoleWrite(fb.PlaybackTime);
+
+    if(is_ultimate){
+        start_position = fb.PlaybackTime;
+        calc_ultimate_remain(fb.PlaybackTime);
+    }
 }
 
 function on_key_down(vkey) {
@@ -231,7 +279,21 @@ function on_key_down(vkey) {
 }
 
 function on_main_menu(idx){
-    addManyLocation();
+    switch(idx){
+        // case 1:
+        //     let tf = get_tf();
+        //     consoleWrite("Click 1: " + tf);
+        //     utils.ShowHtmlDialog(window.ID, `file://` + rootDirectory + `view/view.html`, 
+        //         {
+        //             "resizable": true,
+        //             "context_menu": true,
+        //             "data": tf
+        //         });
+        //     break;
+        default:
+            addManyLocation();
+            break;
+    }
 }
 
 // =======================================

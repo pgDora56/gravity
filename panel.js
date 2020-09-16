@@ -37,6 +37,7 @@ var outroLocation = 15; // Outroのスタート位置
 var ultimateAutoStop = 30; // Ultimate-modeのとき何分で止めるか
 
 //  Propertyを受け取る
+var autoCopy = window.GetProperty("0. Autocopy - Enable", false);
 var rantro_percent = window.GetProperty("1. Rantro - StartLocationRange", "10-90");
 var get_mix_percent = window.GetProperty("2. Mix Ratio - Intro:Rantro", "1:1");
 var get_outro_location = window.GetProperty("3. Outro - StartLocation", "15");
@@ -194,6 +195,10 @@ function on_playback_time(time){
     }
     ultimate_timer--;
     calc_ultimate_remain(time);
+    if(remain == 0){
+        fn_gorec();
+        start_position = fb.PlaybackTime - jsonData.ultimate.maxiplay;
+    }
 }
 
 function calc_ultimate_remain(time){
@@ -210,8 +215,10 @@ function on_playback_new_track(){
     var nowPlayPath = fb.GetNowPlaying().Path;
     isSpotify = nowPlayPath.startsWith("spotify");
     consoleWrite("IsSpotify:" + isSpotify);
-    let tf = get_tf();
-    setClipboard(tf);
+    if(autoCopy){
+        let tf = get_tf();
+        setClipboard(tf);
+    }
     if(isSpotify){
         spotRecordTime = spotifySettingFileLoad(nowPlayPath, fb.TitleFormat("%tracknumber%").Eval(), "RECORD_TIME");
     }
@@ -267,6 +274,7 @@ function on_key_down(vkey) {
     else if(vkey == 32 || vkey == 68) {
         // Push Space / D
         // Ultimate-mode - Show songdata
+        fn_gorec();
         start_position = fb.PlaybackTime - jsonData.ultimate.maxiplay;
     }
     else if(vkey == 82) {

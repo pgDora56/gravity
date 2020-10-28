@@ -5,7 +5,6 @@
 window.DefinePanel("gravity", { author: "Dora F.", version: "20.08b" });
 
 function consoleWrite(msg) {
-    // consoleに出力するときに必ずあたまをつける
     console.log("[gravity] " + msg); 
 }
 
@@ -146,41 +145,53 @@ function on_paint(gr){
     headerColors = [RGB(215, 0, 58), RGB(0,123,187), RGB(240,131,0), RGB(195,216,37), RGB(116,50,92)];
     // consoleWrite("Panel is repainted. -- Height: " + window.Height + " // Width: " + window.Width + " // Item: " + display_num); // For debug
 
-    // メイン部の下塗り
-    //
-    var hcolor = jsonData.header.color;
-    if(have_focus) gr.FillSolidRect(0, headerH, window.Width, window.Height - headerH, RGB((hcolor[0]+255*2)/3,(hcolor[1]+255*2)/3,(hcolor[2]+255*2)/3));
-
     // ヘッダ部の描画
     //
-    var headerH = paintHeader(gr);
+    var headerH = paint.header(gr, have_focus);
     if(gravity == "top") totalHeight = headerH + 5;
     else if(gravity == "bottom") totalHeight = 5;
 
     // MessageWindowの調整
     if(message_window != "") {
         // message_windowがあればそちらを描画してReturn
-        paintMessage(gr, message_window);
+        paint.message(gr, message_window);
         if(remain > 0) return;
     }
 
     // アルバムアートワークの描画
     //
-    paintArtwork(gr, headerH);
+    paint.artwork(gr, headerH);
 
     // 本体の描画
     //
     partsHeight = (window.Height - headerH) / display_num;
     for(var i = 0; i < display_num; i++){
-        if(gravity == "top") paintTop(gr, jsonData.display[i], i);
-        else if(gravity == "bottom") paintBottom(gr, jsonData.display[display_num - 1 - i], display_num - 1 - i);
-        else paintMain(gr, jsonData.display[i], headerH, i);
+        paint.main(gr, jsonData.display[i], i);
     }
+
+
+    // ランプの描画
+    // paint.lamp(gr,100,100,50,50,[196,0,0]);
 }
 
+var clk_count = 0;
 function on_focus(is_focused){
+    if(!is_focused) clk_count = 0;
     have_focus = is_focused;
     window.Repaint();
+}
+
+function on_playback_edited(handle){
+    window.Repaint();
+}
+
+function on_mouse_lbtn_down(x,y,mask){
+    clk_count += 1;
+    if(clk_count < 2) return;
+    console.log("Call lbtn_down:" + have_focus);
+    
+    // ここでクリックメニューを作成する
+    var menu = window.CreatePopupMenu();
 }
 
 function on_playback_time(time){
@@ -199,15 +210,6 @@ function on_playback_time(time){
         fn_gorec();
         start_position = fb.PlaybackTime - jsonData.ultimate.maxiplay;
     }
-}
-
-function calc_ultimate_remain(time){
-    remain =  Math.floor(jsonData.ultimate.maxiplay - (time - start_position));
-    if(remain <= -2 && 5+remain < ultimate_timer) message_window = (remain + 5);
-    else if(remain <= 0) message_window = "";
-    else message_window = remain;
-
-    window.Repaint();
 }
 
 function on_playback_new_track(){
@@ -324,6 +326,18 @@ function on_main_menu(idx){
 // 
 // Other Functions
 //
+
+// ultimate modeの残り時間を計算
+// @param time 現在の時間
+//
+function calc_ultimate_remain(time){
+    remain =  Math.floor(jsonData.ultimate.maxiplay - (time - start_position));
+    if(remain <= -2 && 5+remain < ultimate_timer) message_window = (remain + 5);
+    else if(remain <= 0) message_window = "";
+    else message_window = remain;
+
+    window.Repaint();
+}
 
 // 記録箇所に移動する
 // @param no 記録の通し番号(int)

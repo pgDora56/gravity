@@ -97,7 +97,6 @@ catch(e){
 //
 var display = [{format:"", font:{family: "Meiryo UI", size:10, color:[0,0,0]}}];
 var defaultfont = {family: "Meiryo UI", size:10, color:[0,0,0]};
-var gravity = "none";
 var isSpotify = false;
 var have_focus = false;
 var mode = 0; // 0 -> Intro, 1 -> Rantro, 2 -> Mix, 3 -> Outro
@@ -107,7 +106,6 @@ var xhr = new ActiveXObject("Microsoft.XMLHTTP");
 var path = rootDirectory + "setting.json"; // 読み込む外部ファイル
 var jsonData = {};
 var partsHeight = window.Height;
-var totalHeight = 0;
 xhr.open("GET", path, true);
 xhr.onreadystatechange = function(){
     // ローカルファイル用
@@ -116,9 +114,6 @@ xhr.onreadystatechange = function(){
         jsonData = JSON.parse(settingFile);
         defaultfont = jsonData.defaultfont;
         judgeFormat = jsonData.format;
-        if(jsonData.gravity != undefined){
-            gravity = jsonData.gravity.toLowerCase();
-        }
         partsHeight = window.Height / display_num;
     }
 };
@@ -127,6 +122,8 @@ xhr.send(null);
 include(`${fb.ComponentPath}docs\\Flags.js`);
 include(`${fb.ComponentPath}docs\\Helpers.js`);
 include(`common.js`);
+include(`paint.js`);
+var paint = new Paint();
 
 //==============================================
 
@@ -134,22 +131,17 @@ include(`common.js`);
 // Callback Functions
 //
 
-var headerColors = [];
-var leftMargin = 15;
 var start_position = 0; // ultimate-mode用
 var remain = 417; // ultimate-mode用
 var ultimate_timer = ultimateAutoStop * 60; // ultimate-mode用
 var message_window = "";
 function on_paint(gr){
     var display_num = jsonData.display.length;
-    headerColors = [RGB(215, 0, 58), RGB(0,123,187), RGB(240,131,0), RGB(195,216,37), RGB(116,50,92)];
-    // consoleWrite("Panel is repainted. -- Height: " + window.Height + " // Width: " + window.Width + " // Item: " + display_num); // For debug
+    paint = new Paint();
 
     // ヘッダ部の描画
     //
-    var headerH = paint.header(gr, have_focus);
-    if(gravity == "top") totalHeight = headerH + 5;
-    else if(gravity == "bottom") totalHeight = 5;
+    paint.header(gr, have_focus);
 
     // MessageWindowの調整
     if(message_window != "") {
@@ -160,15 +152,14 @@ function on_paint(gr){
 
     // アルバムアートワークの描画
     //
-    paint.artwork(gr, headerH);
+    paint.artwork(gr);
 
     // 本体の描画
     //
-    partsHeight = (window.Height - headerH) / display_num;
+    partsHeight = (window.Height - paint.headerH) / display_num;
     for(var i = 0; i < display_num; i++){
         paint.main(gr, jsonData.display[i], i);
     }
-
 
     // ランプの描画
     // paint.lamp(gr,100,100,50,50,[196,0,0]);
@@ -414,7 +405,6 @@ function rec_to_array(){
     return arr;
 }
 
-include(`paint.js`);
 
 // Mixモード時の開始位置を取得する
 // @return 開始位置(float)

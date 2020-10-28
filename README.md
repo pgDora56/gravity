@@ -14,7 +14,6 @@ It is the example based on me.
 
 ```
 {
-  "gravity" : "top", 
   "defaultfont": {
         "family": "源真ゴシック Medium",
         "size": 16,
@@ -81,14 +80,6 @@ It is the example based on me.
     "font": FontObject,
 }
 ```
-
-### gravity
-
-This item is one of the following three choices.
-
-* `top`: Each column is aligned on top
-* `bottom` : Each column is aligned on bottom
-* `default` : Displays each column by dividing the height into equal parts(like DoraIntroPanel)
 
 ### format
 

@@ -1,53 +1,59 @@
-const paint = {
+class Paint {
+    constructor() {
+        this.headerColors = [RGB(215, 0, 58), RGB(0,123,187), RGB(240,131,0), RGB(195,216,37), RGB(116,50,92)];
+        this.leftMargin = 15;
+        this.headerH = 0;
+        this.totalHeight = 0;
+    }
 
     // デフォルトの形式(上寄せ)でパネルのメイン部分の行を描画する
     // @param gr GdiGraphics
     // @param display 表示する部分の内容
-    // @param headerH ヘッダの高さ(float)
     // @param i 何ブロック目か(int)
-    main : function (gr, display, headerH, i) {
-        var prevTotalHeight = totalHeight;
+    main(gr, display, i) {
+        this.totalHeight += 5;
+        let startXloc = this.totalHeight;
         if(display.subline != undefined){
             var subfnt = fntToSub(display.font, display.subline.font);
             var subclr = RGB(subfnt.color[0],subfnt.color[1],subfnt.color[2]);
-            var ms = gr.MeasureString(fb.TitleFormat(display.subline.format).Eval(), fnt(subfnt), leftMargin, totalHeight, window.Width - leftMargin, 10000, 0);
-            gr.DrawString(fb.TitleFormat(display.subline.format).Eval(), fnt(subfnt), subclr, leftMargin, totalHeight, window.Width - leftMargin, ms.Height+1, 0);
-            totalHeight += ms.Height + 1;
+            var ms = gr.MeasureString(fb.TitleFormat(display.subline.format).Eval(), fnt(subfnt), this.leftMargin, this.totalHeight, window.Width - this.leftMargin, 10000, 0);
+            gr.DrawString(fb.TitleFormat(display.subline.format).Eval(), fnt(subfnt), subclr, this.leftMargin, this.totalHeight, window.Width - this.leftMargin, ms.Height+1, 0);
+            this.totalHeight += ms.Height + 1;
         }
-        var mainHeight = gr.MeasureString(fb.TitleFormat(display.format).Eval(), fnt(display.font), leftMargin, totalHeight, window.Width - leftMargin, 10000, 0).Height;
-        gr.DrawString(fb.TitleFormat(display.format).Eval(), fnt(display.font), fntclr(display.font), leftMargin, totalHeight, window.Width - leftMargin, mainHeight+1, 0);
-        gr.FillSolidRect(5, prevTotalHeight + 4, 3, ms.Height + mainHeight - 8, headerColors[i%5]);
-        totalHeight += mainHeight + 15;
-    },
+        var mainHeight = gr.MeasureString(fb.TitleFormat(display.format).Eval(), fnt(display.font), this.leftMargin, this.totalHeight, window.Width - this.leftMargin, 10000, 0).Height;
+        gr.DrawString(fb.TitleFormat(display.format).Eval(), fnt(display.font), fntclr(display.font), this.leftMargin, this.totalHeight, window.Width - this.leftMargin, mainHeight+1, 0);
+        gr.FillSolidRect(5, startXloc + 4, 3, ms.Height + mainHeight - 8, this.headerColors[i%5]);
+        this.totalHeight += mainHeight;
+    }
 
     // ヘッダを描画する
     // @param gr GdiGraphics
-    header:function(gr, focus){
+    // @param focus boolean
+    header(gr, focus){
         var tText = paint.makeTopText();
         var headerMeasure = gr.MeasureString(tText, fnt(jsonData.header.font), 0,0,window.Width,10000,0);
-        var headerH = headerMeasure.Height + 2;
-        if(headerH < 3) headerH = gr.MeasureString("Shiina", fnt(jsonData.header.font), 0,0,window.Width,10000,0).Height + 2;
+        this.headerH = headerMeasure.Height + 2;
+        if(this.headerH < 3) this.headerH = gr.MeasureString("Shiina", fnt(jsonData.header.font), 0,0,window.Width,10000,0).Height + 2;
         var hcolor = jsonData.header.color;
-        backcolor = RGB(hcolor[0], hcolor[1], hcolor[2]);
+        let backcolor = RGB(hcolor[0], hcolor[1], hcolor[2]);
         if(!focus) backcolor = RGB(Math.round((hcolor[0]+255*2)/3),Math.round((hcolor[1]+255*2)/3),Math.round((hcolor[2]+255*2)/3));
-        gr.FillSolidRect(0,0,window.Width,headerH-2,backcolor);
-        gr.DrawString(tText, fnt(jsonData.header.font), fntclr(jsonData.header.font), 0, 0, window.Width, headerH, 0);
-        return headerH;
-    },
+        gr.FillSolidRect(0,0,window.Width,this.headerH-2,backcolor);
+        gr.DrawString(tText, fnt(jsonData.header.font), fntclr(jsonData.header.font), 0, 0, window.Width, this.headerH, 0);
+        this.totalHeight += this.headerH;
+    }
 
     // アートワークを描画する
     // @param gr GdiGraphics
-    // @param headerH ヘッダの高さ
-    artwork:function(gr, headerH){
+    artwork(gr){
         try{
             var img = utils.GetAlbumArtV2(fb.GetNowPlaying());
             if(img != null){
                 var w_per_h = img.Width / img.Height;
-                var drawing_height = window.Height - headerH;
+                var drawing_height = window.Height - this.headerH;
                 var h = drawing_height * 0.7;
                 var w = h * w_per_h;
                 var x = window.Width - window.Width * 0.05 - w;
-                var y = headerH + drawing_height * 0.05;
+                var y = this.headerH + drawing_height * 0.05;
                 var src_x = 0;
                 var src_y = 0;
                 var src_w = img.Width;
@@ -61,11 +67,11 @@ const paint = {
         catch{
             consoleWrite("Album Artwork is not found");
         }
-    },
+    }
 
     // ヘッダに表示する内容を生成する
     // @return ヘッダに表示する内容(string)
-    makeTopText:function (){
+    makeTopText(){
         // プレイリスト名＆何曲目か/プレイリスト総曲数
         if(is_ultimate){
             // Ultimate-modeのときは残り時間を表示
@@ -97,13 +103,13 @@ const paint = {
         if(rec == "") return topText; 
         topText += ' // REC:' + rec.replace(/-1/g, "-");
         return topText;
-    },
+    }
 
     // 任意のメッセージを中央に表示するパネルを出現させる
     // Ultimate-modeで主に使用
     // @param gr GdiGraphics
     // @param msg 表示する文字列(string)
-    message:function(gr, msg) {
+    message(gr, msg) {
         var messageMeasure = gr.MeasureString(msg, fnt(jsonData.ultimate.font), 0,0,window.Width,10000,0);
         let w = messageMeasure.Width * 2;
         let h = messageMeasure.Height * 2;
@@ -115,9 +121,9 @@ const paint = {
         gr.FillEllipse(left, up, w, h, RGB(255,255,255));
         gr.DrawEllipse(left, up, w, h, 2, RGB(0,0,0));
         gr.DrawString(msg, fnt(jsonData.ultimate.font), fntclr(jsonData.ultimate.font), (window.Width - messageMeasure.Width) / 2, (window.Height- messageMeasure.Height) / 2, w, h, 0);
-    },
+    }
 
-    lamp: function(gr, x, y, w, h, clr) {
+    lamp(gr, x, y, w, h, clr) {
         gr.FillEllipse(x, y, w, h, RGB(clr[0],clr[1],clr[2]));
         gr.DrawEllipse(x, y, w, h, 5, RGB(128,128,128));
     }

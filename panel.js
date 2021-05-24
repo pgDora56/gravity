@@ -176,13 +176,47 @@ function on_playback_edited(handle){
     window.Repaint();
 }
 
-function on_mouse_lbtn_down(x,y,mask){
-    clk_count += 1;
-    if(clk_count < 2) return;
-    console.log("Call lbtn_down:" + have_focus);
+// function on_mouse_lbtn_down(x,y,mask){
+//     clk_count += 1;
+//     if(clk_count < 2) return;
+//     console.log("Call lbtn_down:" + have_focus + clk_count);
     
-    // ここでクリックメニューを作成する
-    var menu = window.CreatePopupMenu();
+// }
+
+function on_mouse_lbtn_dblclk(x, y, mask){
+    let _context = fb.CreateContextMenuManager();
+    let _basemenu = window.CreatePopupMenu();
+    let _child = window.CreatePopupMenu();
+
+    // start index at 1, NOT 0
+    _basemenu.AppendMenuItem(MF_STRING, 1, 'Append spotify songs from clipboard');
+    _basemenu.AppendMenuItem(MF_STRING, 2, 'Output the contents of the active playlist');
+    _basemenu.AppendMenuItem(MF_STRING, 3, 'Copy the contents of the active playlist');
+    if (fb.GetNowPlaying()) {
+        _child.AppendTo(_basemenu, MF_STRING, 'Now Playing');
+    }
+    
+    _context.InitNowPlaying();
+    _context.BuildMenu(_child, 3);
+
+    const idx = _basemenu.TrackPopupMenu(x, y);
+    
+    switch (idx) {
+        case 0: //user dismissed menu by clicking elsewhere. that's why you can't use 0 when building menu items
+            break;
+        case 1:
+            addManyLocation();
+            break;
+        case 2:
+            fb.ShowPopupMessage(get_active_all_tf());
+            break;
+        case 3:
+            setClipboard(get_active_all_tf());
+            break;
+        default:
+            _context.ExecuteByID(idx - 3);
+            break;
+    }
 }
 
 function on_playback_time(time){
@@ -203,7 +237,8 @@ function on_playback_time(time){
     }
 }
 
-function on_playback_new_track(){
+function on_playback_new_track(handle){
+    consoleWrite(get_tf("%play_count%", handle))  // 再生数少ないのから再生する機能をつけるときよう
     window.Repaint();
     var nowPlayPath = fb.GetNowPlaying().Path;
     isSpotify = nowPlayPath.startsWith("spotify");
@@ -232,6 +267,10 @@ function on_playback_new_track(){
         start_position = fb.PlaybackTime;
         calc_ultimate_remain(fb.PlaybackTime);
     }
+}
+
+function on_playback_starting(cmd, is_paused) {
+    consoleWrite("Starting:" + cmd)
 }
 
 function on_key_down(vkey) {
@@ -271,10 +310,12 @@ function on_key_down(vkey) {
         start_position = fb.PlaybackTime - jsonData.ultimate.maxiplay;
     }
     else if(vkey == 82) {
+        // Push R
         // ultimate_timeをリセットさせる
         ultimate_timer = ultimateAutoStop * 60; // ultimate-mode用
     }
     else if(vkey == 77) {
+        // Push M
         // Mode change
         mode = (mode + 1) % 4;
         consoleWrite(mode);
@@ -296,16 +337,9 @@ function on_key_down(vkey) {
 
 function on_main_menu(idx){
     switch(idx){
-        // case 1:
-        //     let tf = get_tf();
-        //     consoleWrite("Click 1: " + tf);
-        //     utils.ShowHtmlDialog(window.ID, `file://` + rootDirectory + `view/view.html`, 
-        //         {
-        //             "resizable": true,
-        //             "context_menu": true,
-        //             "data": tf
-        //         });
-        //     break;
+        case 1:
+            setClipboard(get_active_all_tf());
+            break;
         default:
             addManyLocation();
             break;
@@ -520,4 +554,20 @@ function get_tf(tf, handle){
     else{
         return fb.TitleFormat(tf).EvalWithMetadb(handle);
     }
+}
+
+function get_active_all_tf(tf) {
+    let handle_list = plman.GetPlaylistItems(plman.ActivePlaylist);
+    return get_multiple_tf(undefined, handle_list);
+}
+
+function get_multiple_tf(tf, handles){
+    var outputs = "";
+    for(let i = 0; i < handles.Count; i++){
+        if(outputs!=""){
+            outputs += "\n";
+        }
+        outputs += get_tf(tf, handles[i]);
+    }
+    return outputs;
 }

@@ -8,6 +8,8 @@ https://open.spotify.com/track/1oADvJTsiTP77B5AgsIwcy?si=AlQu_HfiQJ-Ux4-5JnwpVw
 
 Most of the settings of this tool are defined in JSON files. It is saved as `setting.json`.
 
+--> [JP Manual](JP_JSON.md)
+
 ### Example
 
 It is the example based on me.
@@ -23,6 +25,12 @@ It is the example based on me.
       "color": [255,224,193],
       "font": {
           "size": 12
+      }
+  },
+  "ultimate": {
+      "maxiplay": 15,
+      "font": {
+          "size": 48
       }
   },
   "display": [
@@ -72,11 +80,11 @@ It is the example based on me.
 }
 ```
 
-### Format Object
+### Display Format Object
 ```
 {
     "format": "title-formatting(refer to foobar2000 reference)",
-    "subline": FormatObject(smaller display at the top,
+    "subline": DisplayFormatObject(smaller display at the top),
     "font": FontObject,
 }
 ```

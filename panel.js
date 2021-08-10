@@ -2,14 +2,13 @@
 // 初期値
 //
 
-window.DefinePanel("gravity", { author: "Dora F.", version: "20.08b" });
+window.DefinePanel("gravity", { author: "Dora F.", version: "21.08b" });
 
 function consoleWrite(msg) {
-    console.log("[gravity] " + msg); 
+    if(false) console.log("[gravity] " + msg); 
 }
 
-// var rootDirectory = fb.ProfilePath + "user-components\\foo_spider_monkey_panel\\gravity\\" // Panel全体のRootFolder
-var rootDirectory = fb.ProfilePath + "user-components\\foo_spider_monkey_panel\\gravityDev\\" // 開発用のRootFolder
+var rootDirectory = fb.ProfilePath + "user-components\\foo_spider_monkey_panel\\gravity\\" // Panel全体のRootFolder
 
 consoleWrite("Root Directory: " + rootDirectory);
 // imgフォルダまでのパスを指定する
@@ -44,7 +43,7 @@ var is_ultimate  = window.GetProperty("4.1. Ultimate mode - Enable", false);
 var get_ultimate_auto_stop = window.GetProperty("4.2. Ultimate mode - Auto stop(min)", "30");
 
 // チェック＆必要に応じてパース
-//   Rantroのスタート位置
+// Rantroのスタート位置
 try{
     var pers = rantro_percent.split('-');
     if(pers.length != 2) throw "Rantro StartLocation's value is invalid";
@@ -190,17 +189,22 @@ function on_mouse_lbtn_dblclk(x, y, mask){
 
     // start index at 1, NOT 0
     _basemenu.AppendMenuItem(MF_STRING, 1, 'Append spotify songs from clipboard');
+    _basemenu.AppendMenuSeparator();
     _basemenu.AppendMenuItem(MF_STRING, 2, 'Output the contents of the active playlist');
     _basemenu.AppendMenuItem(MF_STRING, 3, 'Copy the contents of the active playlist');
+    _basemenu.AppendMenuSeparator();
+    _basemenu.AppendMenuItem(MF_STRING, 4, 'Go to SABI');
+    _basemenu.AppendMenuItem(MF_STRING, 5, 'Save the current time as SABI');
     if (fb.GetNowPlaying()) {
+        _basemenu.AppendMenuSeparator();
         _child.AppendTo(_basemenu, MF_STRING, 'Now Playing');
     }
     
     _context.InitNowPlaying();
-    _context.BuildMenu(_child, 3);
+    _context.BuildMenu(_child, 99);
 
     const idx = _basemenu.TrackPopupMenu(x, y);
-    
+
     switch (idx) {
         case 0: //user dismissed menu by clicking elsewhere. that's why you can't use 0 when building menu items
             break;
@@ -213,8 +217,14 @@ function on_mouse_lbtn_dblclk(x, y, mask){
         case 3:
             setClipboard(get_active_all_tf());
             break;
+        case 4:
+            fn_gorec();
+            break
+        case 5:
+            fn_rec();
+            break;
         default:
-            _context.ExecuteByID(idx - 3);
+            _context.ExecuteByID(idx - 99);
             break;
     }
 }

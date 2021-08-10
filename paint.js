@@ -22,7 +22,8 @@ class Paint {
         }
         var mainHeight = gr.MeasureString(fb.TitleFormat(display.format).Eval(), fnt(display.font), this.leftMargin, this.totalHeight, window.Width - this.leftMargin, 10000, 0).Height;
         gr.DrawString(fb.TitleFormat(display.format).Eval(), fnt(display.font), fntclr(display.font), this.leftMargin, this.totalHeight, window.Width - this.leftMargin, mainHeight+1, 0);
-        gr.FillSolidRect(5, startXloc + 4, 3, ms.Height + mainHeight - 8, this.headerColors[i%5]);
+        let h = (ms == undefined) ? mainHeight-8 : ms.Height + mainHeight - 8;
+        gr.FillSolidRect(5, startXloc + 4, 3, h, this.headerColors[i%5]);
         this.totalHeight += mainHeight;
     }
 

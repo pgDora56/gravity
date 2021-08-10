@@ -8,18 +8,8 @@ function consoleWrite(msg) {
     if(false) console.log("[gravity] " + msg); 
 }
 
-var rootDirectory = fb.ProfilePath + "user-components\\foo_spider_monkey_panel\\gravity\\" // Panel全体のRootFolder
-
+var rootDirectory = "C:\\Users\\" + fb.ProfilePath.split("\\")[2] + "\\gravity_panel\\";
 consoleWrite("Root Directory: " + rootDirectory);
-// imgフォルダまでのパスを指定する
-//
-var img_path = rootDirectory + "img/"; 
-
- 
-// 保存するデータの基準となるパスを指定する
-// 既存のフォルダを指定したほうが良い(環境に依る?)
-//
-var savedata_root_path = rootDirectory + "history/"; 
 
 // =================================================
 //

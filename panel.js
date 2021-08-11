@@ -95,6 +95,7 @@ var xhr = new ActiveXObject("Microsoft.XMLHTTP");
 var path = rootDirectory + "setting.json"; // 読み込む外部ファイル
 var jsonData = {};
 var partsHeight = window.Height;
+var display_num = 1;
 xhr.open("GET", path, true);
 xhr.onreadystatechange = function(){
     // ローカルファイル用
@@ -103,6 +104,7 @@ xhr.onreadystatechange = function(){
         jsonData = JSON.parse(settingFile);
         defaultfont = jsonData.defaultfont;
         judgeFormat = jsonData.format;
+        display_num = jsonData.display.length;
         partsHeight = window.Height / display_num;
     }
 };
@@ -125,7 +127,7 @@ var remain = 417; // ultimate-mode用
 var ultimate_timer = ultimateAutoStop * 60; // ultimate-mode用
 var message_window = "";
 function on_paint(gr){
-    var display_num = jsonData.display.length;
+    display_num = jsonData.display.length;
     paint = new Paint();
 
     // ヘッダ部の描画

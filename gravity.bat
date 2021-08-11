@@ -1,18 +1,18 @@
 @echo off
 SET folder=%USERPROFILE%\gravity_panel
 SET urlhead=https://github.com/pgDora56/gravity/raw/master/
-if not exist folder (
-    mkdir %folder% 
+if not exist "%folder%" (
+    mkdir "%folder%" 
 )
-bitsadmin /TRANSFER grdl %urlhead%panel.js %folder%\panel.js
-bitsadmin /TRANSFER grdl %urlhead%paint.js %folder%\paint.js
-bitsadmin /TRANSFER grdl %urlhead%common.js %folder%\common.js
-bitsadmin /TRANSFER grdl %urlhead%LICENSE %folder%\LICENSE
-if not exist %folder%\setting.json (
-    bitsadmin /TRANSFER grdl https://labo.417dr.com/resource/gravity/setting.json %folder%\setting.json
+bitsadmin /TRANSFER grdl %urlhead%panel.js "%folder%\panel.js"
+bitsadmin /TRANSFER grdl %urlhead%paint.js "%folder%\paint.js"
+bitsadmin /TRANSFER grdl %urlhead%common.js "%folder%\common.js"
+bitsadmin /TRANSFER grdl %urlhead%LICENSE "%folder%\LICENSE"
+if not exist "%folder%\setting.json" (
+    bitsadmin /TRANSFER grdl https://labo.417dr.com/resource/gravity/setting.json "%folder%\setting.json"
 )
-if not exist %folder%\spotify (
-    mkdir %folder%\spotify
+if not exist "%folder%\spotify" (
+    mkdir "%folder%\spotify"
 )
 echo;
 echo include("%folder:\=/%/panel.js");

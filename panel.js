@@ -2,7 +2,7 @@
 // 初期値
 //
 
-window.DefinePanel("gravity", { author: "Dora F.", version: "21.08b" });
+window.DefinePanel("gravity", { author: "Dora F.", version: "24.01" });
 
 function consoleWrite(msg) {
     if (false) console.log("[gravity] " + msg);

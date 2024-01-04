@@ -34,6 +34,7 @@ var is_ultimate = window.GetProperty("4.1. Ultimate mode - Enable", false);
 var get_ultimate_auto_stop = window.GetProperty("4.2. Ultimate mode - Auto stop(min)", "30");
 var ultimate_timeover_stop = window.GetProperty("4.3. Ultimate mode - Stop after timeover", false);
 var ultimate_countdown = window.GetProperty("4.4. Ultimate mode - Count down(sec)", "20");
+var all_memorize = window.GetProperty("5. All memorize - Enable", false);
 
 // チェック＆必要に応じてパース
 // Rantroのスタート位置
@@ -186,12 +187,14 @@ function on_playback_edited(handle) {
 // }
 
 function on_mouse_lbtn_dblclk(x, y, mask) {
+    const MEMOFILE = rootDirectory + "memorizer.txt"
     let _context = fb.CreateContextMenuManager();
     let _basemenu = window.CreatePopupMenu();
     let _child = window.CreatePopupMenu();
 
     // start index at 1, NOT 0
-    _basemenu.AppendMenuItem(MF_STRING, 1, 'Append spotify songs from clipboard');
+    _basemenu.AppendMenuItem(MF_STRING, 6, 'View memo');
+    _basemenu.AppendMenuItem(MF_STRING, 7, 'Delete memo');
     _basemenu.AppendMenuSeparator();
     _basemenu.AppendMenuItem(MF_STRING, 2, 'Output the contents of the active playlist');
     _basemenu.AppendMenuItem(MF_STRING, 3, 'Copy the contents of the active playlist');
@@ -225,6 +228,36 @@ function on_mouse_lbtn_dblclk(x, y, mask) {
             break
         case 5:
             fn_rec();
+            break;
+        case 6:
+            let memodata = "No memo data"
+            if (utils.FileExists(MEMOFILE)) {
+                let filedata = utils.ReadTextFile(MEMOFILE);
+                if (filedata != "") {
+                    memodata = filedata;
+                }
+            }
+            fb.ShowPopupMessage(memodata);
+            break;
+        case 7:
+            if (!utils.FileExists(MEMOFILE)) {
+                fb.ShowPopupMessage("No memo data");
+                return;
+            }
+            if (utils.ReadTextFile(MEMOFILE) == "") {
+                fb.ShowPopupMessage("No memo data");
+                return;
+            }
+            try {
+                let isok = utils.InputBox(0, "If you agree to delete the memo, enter `OK` in the text box below to continue.", "Delete memo", "", true);
+                if (isok != "OK") {
+                    return;
+                }
+                utils.WriteTextFile(MEMOFILE, "");
+                consoleWrite("Delection of memo completed");
+            } catch (e) {
+                // Do nothing
+            }
             break;
         default:
             _context.ExecuteByID(idx - 99);
@@ -263,6 +296,9 @@ function on_playback_new_track(handle) {
     if (autoCopy) {
         let tf = get_tf();
         setClipboard(tf);
+    }
+    if (all_memorize) {
+        add_memorize_nowplaying();
     }
     if (isSpotify) {
         spotRecordTime = spotifySettingFileLoad(nowPlayPath, fb.TitleFormat("%tracknumber%").Eval(), "RECORD_TIME");
@@ -328,6 +364,11 @@ function on_key_down(vkey) {
     }
     else if (vkey == 82) {
         // Push R
+        // 出題中の楽曲をメモする
+        add_memorize_nowplaying();
+    }
+    else if (vkey == 27) {
+        // Push ESC
         // ultimate_timeをリセットさせる
         ultimate_timer = ultimateAutoStop * 60; // ultimate-mode用
     }
@@ -587,4 +628,23 @@ function get_multiple_tf(tf, handles) {
         outputs += get_tf(tf, handles[i]);
     }
     return outputs;
+}
+
+function add_memorize_nowplaying() {
+    const MEMOFILE = rootDirectory + "memorizer.txt"
+    var nowplayingData = get_tf()
+    if (nowplayingData == undefined) return;
+    var memodata = "";
+    if (utils.FileExists(MEMOFILE)) {
+        filedata = utils.ReadTextFile(MEMOFILE);
+        if (filedata.startsWith(nowplayingData)) {
+            // 重複登録をブロック
+            return;
+        }
+        if (filedata != "") {
+            memodata = "\n" + filedata;
+        }
+    }
+    utils.WriteTextFile(MEMOFILE, nowplayingData + memodata);
+    consoleWrite("Add to memo: " + nowplayingData);
 }

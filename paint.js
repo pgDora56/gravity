@@ -74,42 +74,46 @@ class Paint {
     // @return ヘッダに表示する内容(string)
     makeTopText() {
         // プレイリスト名＆何曲目か/プレイリスト総曲数
+        var playing_item_location = plman.GetPlayingItemLocation();
+        var topText = plman.GetPlaylistName(playing_item_location.PlaylistIndex); // Playlist Name
+
         if (is_ultimate) {
             if (ultimateAutoStop == 0) {
                 let min = Math.floor(ultimate_timer / 60);
                 let sec = ultimate_timer % 60;
-                return "Elapsed -> " + min + ":" + ((sec < 10) ? "0" : "") + sec;
+                return "Elapsed -> " + min + ":" + ((sec < 10) ? "0" : "") + sec + " // " + topText + " " + this.getModeText();
             } else {
                 // Ultimate-modeのときは残り時間を表示
                 if (ultimate_timer <= 0) return "Additional time";
                 let min = Math.floor(ultimate_timer / 60);
                 let sec = ultimate_timer % 60;
-                return "Remain -> " + min + ":" + ((sec < 10) ? "0" : "") + sec;
+                return "Remain -> " + min + ":" + ((sec < 10) ? "0" : "") + sec + " // " + topText + " " + this.getModeText();
             }
         }
 
-        var playing_item_location = plman.GetPlayingItemLocation();
-        var topText = plman.GetPlaylistName(playing_item_location.PlaylistIndex); // Playlist Name
         if (fb.IsPlaying) topText += ' [' + (playing_item_location.PlaylistItemIndex + 1) + "/" + plman.PlaylistItemCount(plman.PlayingPlaylist) + ']';
 
         // Rantro, Mix, Outroの場合は記載
-        switch (mode) {
-            case 1: // Rantro
-                topText += " // Rantro>>" + minPercent + "%~" + maxPercent + "% ";
-                break
-            case 2: // Mix
-                topText += " // Mix>>I:R(" + minPercent + "%~" + maxPercent + "%)=" + mixIntroRatio + ":" + mixRantroRatio + " ";
-                break
-            case 3: // Outro
-                topText += " // Outro>>" + outroLocation + "sec before the end ";
-                break;
-        }
+        topText += " // " + this.getModeText()
 
         // RECORD_TIMEまわり
         var rec = (isSpotify) ? spotRecordTime : fb.TitleFormat("[%RECORD_TIME%]").Eval();
         if (rec == "") return topText;
         topText += ' // REC:' + rec.replace(/-1/g, "-");
         return topText;
+    }
+
+    getModeText() {
+        let mtext = (all_memorize) ? "[M]" : "";
+        switch (mode) {
+            case 1: // Rantro
+                mtext += "Rantro>>" + minPercent + "%~" + maxPercent + "% ";
+            case 2: // Mix
+                mtext += "Mix>>I:R(" + minPercent + "%~" + maxPercent + "%)=" + mixIntroRatio + ":" + mixRantroRatio + " ";
+            case 3: // Outro
+                mtext += "Outro>>" + outroLocation + "sec before the end ";
+        }
+        return mtext;
     }
 
     // 任意のメッセージを中央に表示するパネルを出現させる

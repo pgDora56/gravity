@@ -371,6 +371,7 @@ function on_key_down(vkey) {
         // Push ESC
         // ultimate_timeをリセットさせる
         ultimate_timer = ultimateAutoStop * 60; // ultimate-mode用
+        fb.Next();
         window.Repaint();
     }
     else if (vkey == 77) {

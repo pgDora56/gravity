@@ -2,10 +2,10 @@
 // 初期値
 //
 
-window.DefinePanel("gravity", { author: "Dora F.", version: "24.01" });
+window.DefinePanel("gravity", { author: "Dora F.", version: "24.02" });
 
 function consoleWrite(msg) {
-    if (false) console.log("[gravity] " + msg);
+    if (true) console.log("[gravity] " + msg);
 }
 
 var rootDirectory = "C:\\Users\\" + fb.ProfilePath.split("\\")[2] + "\\gravity_panel\\";
@@ -24,6 +24,7 @@ var mixIntroRatio = 1; var mixRantroRatio = 1; // Mixの比率
 var outroLocation = 15; // Outroのスタート位置
 var ultimateAutoStop = 30; // Ultimate-modeのとき何分で止めるか
 var ultimateCountdown = 30; // Ultimate-modeのとき1曲流すか
+var ultimateDisplay = 5; // Ultimate-modeのとき何秒曲情報を表示するか
 
 //  Propertyを受け取る
 var autoCopy = window.GetProperty("0. Autocopy - Enable", false);
@@ -34,6 +35,7 @@ var is_ultimate = window.GetProperty("4.1. Ultimate mode - Enable", false);
 var get_ultimate_auto_stop = window.GetProperty("4.2. Ultimate mode - Auto stop(min)", "30");
 var ultimate_timeover_stop = window.GetProperty("4.3. Ultimate mode - Stop after timeover", false);
 var ultimate_countdown = window.GetProperty("4.4. Ultimate mode - Count down(sec)", "20");
+var ultimate_display = window.GetProperty("4.5. Ultimate mode - Display time(sec)", "5");
 var all_memorize = window.GetProperty("5. All memorize - Enable", false);
 
 // チェック＆必要に応じてパース
@@ -87,6 +89,14 @@ try {
 } catch (e) {
     consoleWrite(e);
     ultimateCountdown = 20;
+}
+
+try {
+    ultimateDisplay = parseInt(ultimate_display);
+    if (ultimateDisplay <= 0) ultimateDisplay = 5;
+} catch (e) {
+    consoleWrite(e);
+    ultimateDisplay = 5;
 }
 
 
@@ -268,7 +278,7 @@ function on_mouse_lbtn_dblclk(x, y, mask) {
 function on_playback_time(time) {
     // 再生時に毎秒呼ばれる
     if (!is_ultimate) return; // Ultimate-modeでなければearly return
-    if (remain <= -5) {
+    if (remain <= -1 * ultimateDisplay) {
         if (ultimate_timer <= 0) {
             // 時間が来てたら何もしない
             return;

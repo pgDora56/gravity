@@ -25,6 +25,11 @@ var outroLocation = 15; // Outroのスタート位置
 var ultimateAutoStop = 30; // Ultimate-modeのとき何分で止めるか
 var ultimateCountdown = 30; // Ultimate-modeのとき1曲流すか
 var ultimateDisplay = 5; // Ultimate-modeのとき何秒曲情報を表示するか
+var is_adaptive = false; // Adaptive-modeであるかどうか
+var adaptive_list_numbers = []; // Adaptive-modeのリスト番号を記録
+var adaptive_up_down = [3, -3]; // ランクが上がるためのpt/下がるpt
+var adaptive_now = [0, 0]; // 現在のランク/pt
+var adaptive_this_q_result = 0; // 再生中の曲の正誤を記録しておく(1:o, -1:x)
 
 //  Propertyを受け取る
 var autoCopy = window.GetProperty("0. Autocopy - Enable", false);
@@ -37,6 +42,9 @@ var ultimate_timeover_stop = window.GetProperty("4.3. Ultimate mode - Stop after
 var ultimate_countdown = window.GetProperty("4.4. Ultimate mode - Count down(sec)", "20");
 var ultimate_display = window.GetProperty("4.5. Ultimate mode - Display time(sec)", "5");
 var all_memorize = window.GetProperty("5. All memorize - Enable", false);
+var adaptive_lists = window.GetProperty("6. Adaptive mode - Lists", "");
+var adaptive_rank_up = window.GetProperty("6.1. Adaptive mode - Rank up count", "3");
+var adaptive_rank_down = window.GetProperty("6.2. Adaptive mode - Rank down count", "-3");
 
 // チェック＆必要に応じてパース
 // Rantroのスタート位置
@@ -97,6 +105,45 @@ try {
 } catch (e) {
     consoleWrite(e);
     ultimateDisplay = 5;
+}
+
+
+// Adaptive-mode setting
+try {
+    let lists = adaptive_lists.split(",");
+    if (lists.length < 2) {
+        is_adaptive = false;
+    } else {
+        is_adaptive = true;
+        adaptive_list_numbers = [];
+        for (let i = 0; i < lists.length; i++) {
+            let l_no = plman.FindPlaylist(lists[i]);
+            if (l_no == -1) {
+                console.log($`Adaptive-mode: ${lists[i]} is not found`)
+                is_adaptive = false;
+                break;
+            }
+            adaptive_list_numbers.push(l_no);
+        }
+        console.log(adaptive_list_numbers);
+        if (is_adaptive) {
+            let down = parseInt(adaptive_rank_down);
+            let up = parseInt(adaptive_rank_up);
+            if (up <= 0 || down >= 0) {
+                // upとdownが不適
+                is_adaptive = false;
+            }
+            adaptive_up_down = [up, down];
+        }
+        adaptive_now = [0, 0];
+    }
+    console.log("Adaptive:", is_adaptive);
+} catch (e) {
+    consoleWrite(e);
+    is_adaptive = false;
+    adaptive_list_numbers = [];
+    adaptive_up_down = [];
+    adaptive_now = [0, 0];
 }
 
 
@@ -298,6 +345,34 @@ function on_playback_time(time) {
 }
 
 function on_playback_new_track(handle) {
+    if (is_adaptive) {
+        adaptive_now[1] += adaptive_this_q_result;
+        adaptive_this_q_result = 0;
+        if (adaptive_now[0] == 0 && adaptive_now[1] < 0) {
+            // 最低ランクで負の値にはいかない
+            adaptive_now[1] = 0;
+        }
+
+        if (adaptive_up_down[0] <= adaptive_now[1]) {
+            // ランクアップポイントを超えている
+            if (adaptive_now[0] < adaptive_list_numbers.length - 1) {
+                // 上がれるランクが有る
+                adaptive_now = [adaptive_now[0] + 1, 0];
+                plman.PlayingPlaylist = adaptive_list_numbers[adaptive_now[0]];
+                fb.Random();
+                return;
+            }
+        }
+        else if (adaptive_up_down[1] >= adaptive_now[1]) {
+            // ランクダウンポイントを下回っている
+            if (adaptive_now[0] > 0) {
+                adaptive_now = [adaptive_now[0] - 1, 0];
+                plman.PlayingPlaylist = adaptive_list_numbers[adaptive_now[0]];
+                fb.Random();
+                return;
+            }
+        }
+    }
     consoleWrite(get_tf("%play_count%", handle))  // 再生数少ないのから再生する機能をつけるときよう
     window.Repaint();
     var nowPlayPath = fb.GetNowPlaying().Path;
@@ -371,6 +446,24 @@ function on_key_down(vkey) {
         // Ultimate-mode - Show songdata
         fn_gorec();
         start_position = fb.PlaybackTime - ultimateCountdown;
+    }
+    else if (vkey == 81) {
+        // Push Q
+        // Adaptive-mode correct
+        if (!is_adaptive) return;
+        adaptive_this_q_result = 1;
+    }
+    else if (vkey == 87) {
+        // Push W
+        // Adaptive-mode wrong
+        if (!is_adaptive) return;
+        adaptive_this_q_result = -1;
+    }
+    else if (vkey == 69) {
+        // Push E
+        // Adaptive-mode reset 
+        if (!is_adaptive) return;
+        adaptive_this_q_result = 0;
     }
     else if (vkey == 82) {
         // Push R

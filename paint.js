@@ -78,16 +78,26 @@ class Paint {
         var topText = plman.GetPlaylistName(playing_item_location.PlaylistIndex); // Playlist Name
 
         if (is_ultimate) {
+            let adaptive_text = "";
+            if (is_adaptive) {
+                let status = "―";
+                if (adaptive_this_q_result == 1) {
+                    status = "◯";
+                } else if (adaptive_this_q_result == -1) {
+                    status = "✕";
+                }
+                adaptive_text = `${adaptive_now[1]}pt(Rank${adaptive_now[0] + 1}/${adaptive_up_down[0]}~${adaptive_up_down[1]})${status} // `
+            }
             if (ultimateAutoStop == 0) {
                 let min = Math.floor(ultimate_timer / 60);
                 let sec = ultimate_timer % 60;
-                return "Elapsed -> " + min + ":" + ((sec < 10) ? "0" : "") + sec + " // " + topText + " " + this.getModeText();
+                return adaptive_text + "Elapsed -> " + min + ":" + ((sec < 10) ? "0" : "") + sec + " // " + topText + " " + this.getModeText();
             } else {
                 // Ultimate-modeのときは残り時間を表示
                 if (ultimate_timer <= 0) return "Additional time";
                 let min = Math.floor(ultimate_timer / 60);
                 let sec = ultimate_timer % 60;
-                return "Remain -> " + min + ":" + ((sec < 10) ? "0" : "") + sec + " // " + topText + " " + this.getModeText();
+                return adaptive_text + "Remain -> " + min + ":" + ((sec < 10) ? "0" : "") + sec + " // " + topText + " " + this.getModeText();
             }
         }
 
@@ -108,10 +118,13 @@ class Paint {
         switch (mode) {
             case 1: // Rantro
                 mtext += "Rantro>>" + minPercent + "%~" + maxPercent + "% ";
+                break;
             case 2: // Mix
                 mtext += "Mix>>I:R(" + minPercent + "%~" + maxPercent + "%)=" + mixIntroRatio + ":" + mixRantroRatio + " ";
+                break;
             case 3: // Outro
                 mtext += "Outro>>" + outroLocation + "sec before the end ";
+                break;
         }
         return mtext;
     }

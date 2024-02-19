@@ -80,11 +80,11 @@ class Paint {
         if (is_ultimate) {
             let adaptive_text = "";
             if (is_adaptive) {
-                let status = "―";
+                let status = " - ";
                 if (adaptive_this_q_result == 1) {
-                    status = "◯";
+                    status = " O ";
                 } else if (adaptive_this_q_result == -1) {
-                    status = "✕";
+                    status = " X ";
                 }
                 adaptive_text = `${adaptive_now[1]}pt(Rank${adaptive_now[0] + 1}/${adaptive_up_down[0]}~${adaptive_up_down[1]})${status} // `
             }
@@ -94,7 +94,7 @@ class Paint {
                 return adaptive_text + "Elapsed -> " + min + ":" + ((sec < 10) ? "0" : "") + sec + " // " + topText + " " + this.getModeText();
             } else {
                 // Ultimate-modeのときは残り時間を表示
-                if (ultimate_timer <= 0) return "Additional time";
+                if (ultimate_timer <= 0) return adaptive_text + "Additional time";
                 let min = Math.floor(ultimate_timer / 60);
                 let sec = ultimate_timer % 60;
                 return adaptive_text + "Remain -> " + min + ":" + ((sec < 10) ? "0" : "") + sec + " // " + topText + " " + this.getModeText();

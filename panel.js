@@ -357,18 +357,14 @@ function on_playback_new_track(handle) {
             // ランクアップポイントを超えている
             if (adaptive_now[0] < adaptive_list_numbers.length - 1) {
                 // 上がれるランクが有る
-                adaptive_now = [adaptive_now[0] + 1, 0];
-                plman.PlayingPlaylist = adaptive_list_numbers[adaptive_now[0]];
-                fb.Random();
+                adaptive_playlist_change(adaptive_now[0] + 1);
                 return;
             }
         }
         else if (adaptive_up_down[1] >= adaptive_now[1]) {
             // ランクダウンポイントを下回っている
             if (adaptive_now[0] > 0) {
-                adaptive_now = [adaptive_now[0] - 1, 0];
-                plman.PlayingPlaylist = adaptive_list_numbers[adaptive_now[0]];
-                fb.Random();
+                adaptive_playlist_change(adaptive_now[0] - 1);
                 return;
             }
         }
@@ -452,18 +448,21 @@ function on_key_down(vkey) {
         // Adaptive-mode correct
         if (!is_adaptive) return;
         adaptive_this_q_result = 1;
+        window.Repaint();
     }
     else if (vkey == 87) {
         // Push W
         // Adaptive-mode wrong
         if (!is_adaptive) return;
         adaptive_this_q_result = -1;
+        window.Repaint();
     }
     else if (vkey == 69) {
         // Push E
         // Adaptive-mode reset 
         if (!is_adaptive) return;
         adaptive_this_q_result = 0;
+        window.Repaint();
     }
     else if (vkey == 82) {
         // Push R
@@ -474,6 +473,9 @@ function on_key_down(vkey) {
         // Push ESC
         // ultimate_timeをリセットさせる
         ultimate_timer = ultimateAutoStop * 60; // ultimate-mode用
+        if (is_adaptive) {
+            adaptive_playlist_change(0);
+        }
         fb.Next();
         window.Repaint();
     }
@@ -752,4 +754,14 @@ function add_memorize_nowplaying() {
     }
     utils.WriteTextFile(MEMOFILE, nowplayingData + memodata);
     consoleWrite("Add to memo: " + nowplayingData);
+}
+
+function adaptive_playlist_change(change_to) {
+    adaptive_now = [change_to, 0]
+    change_playlist(adaptive_list_numbers[change_to]);
+}
+
+function change_playlist(playlistnumber) {
+    plman.PlayingPlaylist = playlistnumber;
+    fb.Random();
 }

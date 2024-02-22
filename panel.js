@@ -45,6 +45,7 @@ var all_memorize = window.GetProperty("5. All memorize - Enable", false);
 var adaptive_lists = window.GetProperty("6. Adaptive mode - Lists", "");
 var adaptive_rank_up = window.GetProperty("6.1. Adaptive mode - Rank up count", "3");
 var adaptive_rank_down = window.GetProperty("6.2. Adaptive mode - Rank down count", "-3");
+var adaptive_order_random = window.GetProperty("6.3. Adaptive mode - Order randomize", false); // Adaptive-modeのリスト順をランダムにする
 
 // チェック＆必要に応じてパース
 // Rantroのスタート位置
@@ -474,7 +475,11 @@ function on_key_down(vkey) {
         // ultimate_timeをリセットさせる
         ultimate_timer = ultimateAutoStop * 60; // ultimate-mode用
         if (is_adaptive) {
+            if (adaptive_order_random) {
+                adaptive_list_randomize();
+            }
             adaptive_playlist_change(0);
+            adaptive_this_q_result = 0;
         }
         fb.Next();
         window.Repaint();
@@ -754,6 +759,16 @@ function add_memorize_nowplaying() {
     }
     utils.WriteTextFile(MEMOFILE, nowplayingData + memodata);
     consoleWrite("Add to memo: " + nowplayingData);
+}
+
+function adaptive_list_randomize() {
+    let list_count = adaptive_list_numbers.length;
+    for (let i = 0; i < list_count; i++) {
+        let rand = Math.floor(Math.random() * list_count);
+        let tmp = adaptive_list_numbers[i];
+        adaptive_list_numbers[i] = adaptive_list_numbers[rand];
+        adaptive_list_numbers[rand] = tmp;
+    }
 }
 
 function adaptive_playlist_change(change_to) {

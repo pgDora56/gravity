@@ -86,7 +86,7 @@ class Paint {
                 } else if (adaptive_this_q_result == -1) {
                     status = " X ";
                 }
-                adaptive_text = `${adaptive_now[1]}pt(Rank${adaptive_now[0] + 1}/${adaptive_up_down[0]}~${adaptive_up_down[1]})${status} // `
+                adaptive_text = `${adaptive_now[1]}pt(Rank${(adaptive_now[0] == adaptive_list_numbers.length) ? 'Last' : adaptive_now[0] + 1}/${adaptive_list_numbers.length})${status} // `
             }
             if (ultimateAutoStop == 0) {
                 let min = Math.floor(ultimate_timer / 60);

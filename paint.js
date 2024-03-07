@@ -86,7 +86,10 @@ class Paint {
                 } else if (adaptive_this_q_result == -1) {
                     status = " X ";
                 }
-                adaptive_text = `${(adaptive_order_random) ? "[R] " : ""} ${adaptive_now[1]}pt(${(adaptive_now[0] == adaptive_list_numbers.length - 1) ? 'Last' : "Rank" + (adaptive_now[0] + 1)}/${adaptive_list_numbers.length})${status} // `
+                let mode_mark = "";
+                if (adaptive_loop) mode_mark += "L";
+                if (adaptive_order_random) mode_mark += "R";
+                adaptive_text = `${(mode_mark != "") ? "[" + mode_mark + "] " : ""} ${adaptive_now[1]}pt(${(adaptive_now[0] == adaptive_list_numbers.length - 1 && !adaptive_loop) ? 'Last' : "Rank" + (adaptive_now[0] + 1)}/${adaptive_list_numbers.length})${status} // `
             }
             if (ultimateAutoStop == 0) {
                 let min = Math.floor(ultimate_timer / 60);

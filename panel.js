@@ -27,6 +27,7 @@ var ultimateCountdown = 30; // Ultimate-modeのとき1曲流すか
 var ultimateDisplay = 5; // Ultimate-modeのとき何秒曲情報を表示するか
 var is_adaptive = false; // Adaptive-modeであるかどうか
 var adaptive_list_numbers = []; // Adaptive-modeのリスト番号を記録
+var adaptive_playlist = []; // Adaptive-modeの実際のプレイリストを記録
 var adaptive_up_down = [3, -3]; // ランクが上がるためのpt/下がるpt
 var adaptive_now = [0, 0]; // 現在のランク/pt
 var adaptive_this_q_result = 0; // 再生中の曲の正誤を記録しておく(1:o, -1:x)
@@ -46,6 +47,7 @@ var adaptive_lists = window.GetProperty("6. Adaptive mode - Lists", "");
 var adaptive_rank_up = window.GetProperty("6.1. Adaptive mode - Rank up count", "3");
 var adaptive_rank_down = window.GetProperty("6.2. Adaptive mode - Rank down count", "-3");
 var adaptive_order_random = window.GetProperty("6.3. Adaptive mode - Order randomize", false); // Adaptive-modeのリスト順をランダムにする
+var adaptive_loop = window.GetProperty("6.4. Adaptive mode - Loop", false); // Adaptive-modeのリスト順をランダムにする
 
 // チェック＆必要に応じてパース
 // Rantroのスタート位置
@@ -120,7 +122,7 @@ try {
         for (let i = 0; i < lists.length; i++) {
             let l_no = plman.FindPlaylist(lists[i]);
             if (l_no == -1) {
-                console.log($`Adaptive-mode: ${lists[i]} is not found`)
+                console.log(`Adaptive-mode: ${lists[i]} is not found`)
                 is_adaptive = false;
                 break;
             }
@@ -360,6 +362,11 @@ function on_playback_new_track(handle) {
                 // 上がれるランクが有る
                 adaptive_playlist_change(adaptive_now[0] + 1);
                 return;
+            } else if (adaptive_loop) {
+                // 次のリストたちを追加
+                adaptive_playlist_add();
+                adaptive_playlist_change(adaptive_now[0] + 1);
+                return;
             }
         }
         else if (adaptive_up_down[1] >= adaptive_now[1]) {
@@ -475,9 +482,8 @@ function on_key_down(vkey) {
         // ultimate_timeをリセットさせる
         ultimate_timer = ultimateAutoStop * 60; // ultimate-mode用
         if (is_adaptive) {
-            if (adaptive_order_random) {
-                adaptive_list_randomize();
-            }
+            adaptive_playlist = [];
+            adaptive_playlist_add();
             adaptive_playlist_change(0);
             adaptive_this_q_result = 0;
         }
@@ -761,19 +767,30 @@ function add_memorize_nowplaying() {
     consoleWrite("Add to memo: " + nowplayingData);
 }
 
-function adaptive_list_randomize() {
-    let list_count = adaptive_list_numbers.length;
-    for (let i = 0; i < list_count; i++) {
-        let rand = Math.floor(Math.random() * list_count);
-        let tmp = adaptive_list_numbers[i];
-        adaptive_list_numbers[i] = adaptive_list_numbers[rand];
-        adaptive_list_numbers[rand] = tmp;
-    }
-}
 
 function adaptive_playlist_change(change_to) {
     adaptive_now = [change_to, 0]
-    change_playlist(adaptive_list_numbers[change_to]);
+    change_playlist(adaptive_playlist[change_to]);
+}
+
+function adaptive_playlist_add() {
+    let newlist = [];
+    let list_count = adaptive_list_numbers.length;
+
+    for (let i = 0; i < list_count; i++) {
+        newlist.push(adaptive_list_numbers[i])
+    }
+    if (adaptive_order_random) {
+        for (let i = 0; i < list_count; i++) {
+            let rand = Math.floor(Math.random() * list_count);
+            let tmp = newlist[i];
+            newlist[i] = newlist[rand];
+            newlist[rand] = tmp;
+        }
+    }
+    console.log("Before playlist", adaptive_playlist);
+    adaptive_playlist = adaptive_playlist.concat(newlist);
+    console.log("Add playlist", adaptive_playlist);
 }
 
 function change_playlist(playlistnumber) {

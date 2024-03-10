@@ -261,6 +261,9 @@ function on_mouse_lbtn_dblclk(x, y, mask) {
     _basemenu.AppendMenuSeparator();
     _basemenu.AppendMenuItem(MF_STRING, 4, 'Go to SABI');
     _basemenu.AppendMenuItem(MF_STRING, 5, 'Save the current time as SABI');
+    _basemenu.AppendMenuSeparator();
+    // _basemenu.AppendMenuItem(MF_STRING, 8, 'Create filter list from active playlist');
+    _basemenu.AppendMenuItem(MF_STRING, 9, 'Cook playlist');
     if (fb.GetNowPlaying()) {
         _basemenu.AppendMenuSeparator();
         _child.AppendTo(_basemenu, MF_STRING, 'Now Playing');
@@ -319,6 +322,28 @@ function on_mouse_lbtn_dblclk(x, y, mask) {
                 // Do nothing
             }
             break;
+        // case 8:
+        //     let ipt = utils.InputBox(0, "Enter filter rule json.", "Spider Monkey Panel", "");
+        //     try {
+        //         let handle_list = plman.GetPlaylistItems(plman.ActivePlaylist);
+        //         let sepRule = JSON.parse(ipt);
+        //         createFilterList(handle_list, sepRule);
+        //     }
+        //     catch (e) {
+        //         fb.ShowPopupMessage("An error has occurred:" + e, "FilterListCreator");
+        //         break;
+        //     }
+        //     break;
+        case 9:
+            // Cook playlist with cook json file
+            let ipt = utils.InputBox(0, "Enter cooking json", "Playlist Cooker", "");
+            try {
+                let recipe = JSON.parse(ipt);
+                playlistCooker(recipe);
+            } catch (e) {
+                fb.ShowPopupMessage("An error has occurred:" + e, "Playlist Cooker");
+                break;
+            }
         default:
             _context.ExecuteByID(idx - 99);
             break;
@@ -796,4 +821,77 @@ function adaptive_playlist_add() {
 function change_playlist(playlistnumber) {
     plman.PlayingPlaylist = playlistnumber;
     fb.Random();
+}
+
+
+function createFilterList(handleList, ruleObject) {
+    console.log(handleList, ruleObject);
+    for (let i = 0; i < ruleObject.length; i++) {
+        // ルールごとに作成
+        let created_playlist_index = plman.CreatePlaylist(plman.PlaylistCount, ruleObject[i]["listname"]);
+        let picklist = new FbMetadbHandleList();
+        for (let j = 0; j < handleList.Count; j++) {
+            // handleList[j]の楽曲について各フィルタに当てはまるかチェック
+            let fulfill = true;
+            for (const [key, value] of Object.entries(ruleObject[i])) {
+                if (key == "listname") continue;
+                switch (key.slice(-1)) {
+                    case "*":
+                        // 前方一致検索
+                        let thisField = key.slice(0, -1);
+                        console.log(thisField, handleList[j]);
+                        console.log(fb.TitleFormat(`%${thisField}%`).EvalWithMetadb(handleList[j]));
+                        if (!fb.TitleFormat(`%${thisField}%`).EvalWithMetadb(handleList[j]).startsWith(value)) {
+                            fulfill = false;
+                        }
+                        break;
+                    case "-":
+                        // 数値範囲検索
+                        let field = key.slice(0, -1);
+                        let fValue = fb.TitleFormat(`%${field}%`).EvalWithMetadb(handleList[j]);
+                        try {
+                            let vals = value.split("-");
+                            if (parseInt(vals[0]) > parseInt(fValue) || parseInt(fValue) > parseInt(vals[1])) {
+                                fulfill = false;
+                            }
+                        } catch (e) {
+                            console.log(`Create filter list error:${e} / key: ${key} / value: ${value}`);
+                            fulfill = false;
+                        }
+                        break;
+                }
+                console.log(key, value);
+                if (!fulfill) break;
+            }
+            if (fulfill) {
+                picklist.Add(handleList[j]);
+            }
+        }
+        plman.InsertPlaylistItems(created_playlist_index, 0, picklist);
+    }
+}
+
+function playlistCooker(cookingJson) {
+    for (let plidx = 0; plidx < cookingJson.length; plidx++) {
+        let recipe = cookingJson[plidx];
+        let handleList = cookingPlaylist(recipe["recipe"]);
+        console.log("[Cooker]", recipe["name"], ":", handleList.Count, "songs");
+        plman.InsertPlaylistItems(
+            plman.CreatePlaylist(plman.PlaylistCount, recipe["name"]),
+            0,
+            handleList
+        )
+    }
+}
+
+function cookingPlaylist(recipe) {
+    let list = new FbMetadbHandleList();
+    for (const [query, g] of Object.entries(recipe)) {
+        let hl = fb.GetQueryItems(fb.GetLibraryItems(), query);
+        console.log("[Cooker]", hl.Count, "songs from", query);
+        for (let i = 0; i < g; i++) {
+            list.AddRange(hl);
+        }
+    }
+    return list;
 }

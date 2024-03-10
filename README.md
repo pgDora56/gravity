@@ -93,5 +93,36 @@ It is the example based on me.
 
 This item defines the copy format. Refer to foobar2000 reference.
 
+
+## Playlist Cooker
+
+Automatically create playlists from recipe JSON data
+
+Usage: Double Click -> Cook playlist
+
+### Cooking JSON Example
+
+```json
+[
+    {
+        "name": "foo",
+        "recipe": {
+            "%artist% HAS TrySail": 3,
+            "%artist% HAS HoneyWorks": 2,
+            "%artist% HAS Sphere": 3
+        }
+    },
+    {
+        "name": "bar",
+        "recipe": {
+            "%title% HAS spirits": 3,
+            "%title% HAS lapis": 1
+        }
+    }
+]
+```
+
+
+
 ## License
 [MIT License](LICENSE)

@@ -42,6 +42,7 @@ var get_ultimate_auto_stop = window.GetProperty("4.2. Ultimate mode - Auto stop(
 var ultimate_timeover_stop = window.GetProperty("4.3. Ultimate mode - Stop after timeover", false);
 var ultimate_countdown = window.GetProperty("4.4. Ultimate mode - Count down(sec)", "20");
 var ultimate_display = window.GetProperty("4.5. Ultimate mode - Display time(sec)", "5");
+var difficulty_balancing = window.GetProperty("4.6. Ultimate mode - Difficulty Balancing - Enable", false);
 var all_memorize = window.GetProperty("5. All memorize - Enable", false);
 var adaptive_lists = window.GetProperty("6. Adaptive mode - Lists", "");
 var adaptive_rank_up = window.GetProperty("6.1. Adaptive mode - Rank up count", "3");
@@ -168,6 +169,7 @@ var path = rootDirectory + "setting.json"; // 読み込む外部ファイル
 var jsonData = {};
 var partsHeight = window.Height;
 var display_num = 1;
+var balancing_total = 0;
 xhr.open("GET", path, true);
 xhr.onreadystatechange = function () {
     // ローカルファイル用
@@ -178,6 +180,13 @@ xhr.onreadystatechange = function () {
         judgeFormat = jsonData.format;
         display_num = jsonData.display.length;
         partsHeight = window.Height / display_num;
+        // console.log(jsonData);
+        if ("balancing" in jsonData) {
+            for (let key in jsonData["balancing"]) {
+                balancing_total += jsonData["balancing"][key];
+            }
+            // console.log("Balancing Total:", balancing_total);
+        }
     }
 };
 xhr.send(null);
@@ -357,6 +366,23 @@ function on_playback_time(time) {
         if (ultimate_timer <= 0) {
             // 時間が来てたら何もしない
             return;
+        }
+        if (difficulty_balancing && balancing_total > 0) {
+            // Difficulty Balancing
+            let tot = 0;
+            let r = Math.floor(Math.random() * balancing_total);
+            // console.log("Balancing Rand", r)
+            for (let query in jsonData["balancing"]) {
+                tot += jsonData["balancing"][query];
+                if (tot > r) {
+                    let active_hl = plman.GetPlaylistItems(plman.PlayingPlaylist);
+                    let hl = fb.GetQueryItems(active_hl, query);
+                    let nextsong = Math.floor(Math.random() * hl.Count);
+                    // console.log(nextsong, hl[nextsong]);
+                    plman.AddItemToPlaybackQueue(hl[nextsong]);
+                    break;
+                }
+            }
         }
         fb.Next();
     }

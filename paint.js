@@ -78,7 +78,7 @@ class Paint {
         var topText = plman.GetPlaylistName(playing_item_location.PlaylistIndex); // Playlist Name
 
         if (is_ultimate) {
-            let adaptive_text = "";
+            let prefix_text = "";
             if (is_adaptive) {
                 let status = " - ";
                 if (adaptive_this_q_result == 1) {
@@ -89,18 +89,25 @@ class Paint {
                 let mode_mark = "";
                 if (adaptive_loop) mode_mark += "L";
                 if (adaptive_order_random) mode_mark += "R";
-                adaptive_text = `${(mode_mark != "") ? "[" + mode_mark + "] " : ""} ${adaptive_now[1]}pt(${(adaptive_now[0] == adaptive_list_numbers.length - 1 && !adaptive_loop) ? 'Last' : "Rank" + (adaptive_now[0] + 1)}/${adaptive_list_numbers.length})${status} // `
+                prefix_text = `${(mode_mark != "") ? "[" + mode_mark + "] " : ""} ${adaptive_now[1]}pt(${(adaptive_now[0] == adaptive_list_numbers.length - 1 && !adaptive_loop) ? 'Last' : "Rank" + (adaptive_now[0] + 1)}/${adaptive_list_numbers.length})${status} // `
+            } else if (ultimate_score_counting) {
+                prefix_text = `Score: ${ultimateScoreCountTotal}pt {${ultimateScoreCount}} `;
+            } else if (ultimate_score_counting_ox) {
+                prefix_text = `${ox_score.o}o ${ox_score.x}x  `;
+            } else if (ultimate_score_counting_percent) {
+                let percentage = percent_score.total > 0 ? Math.round((percent_score.correct / percent_score.total) * 1000) : 0;
+                prefix_text = `${percent_score.correct}/${percent_score.total} (Ave:${percentage / 1000})  `;
             }
             if (ultimateAutoStop == 0) {
                 let min = Math.floor(ultimate_timer / 60);
                 let sec = ultimate_timer % 60;
-                return adaptive_text + "Elapsed -> " + min + ":" + ((sec < 10) ? "0" : "") + sec + " // " + topText + " " + this.getModeText();
+                return prefix_text + "Elapsed -> " + min + ":" + ((sec < 10) ? "0" : "") + sec + " // " + topText + " " + this.getModeText();
             } else {
                 // Ultimate-modeのときは残り時間を表示
-                if (ultimate_timer <= 0) return adaptive_text + "Additional time";
+                if (ultimate_timer <= 0) return prefix_text + "Additional time";
                 let min = Math.floor(ultimate_timer / 60);
                 let sec = ultimate_timer % 60;
-                return adaptive_text + "Remain -> " + min + ":" + ((sec < 10) ? "0" : "") + sec + " // " + topText + " " + this.getModeText();
+                return prefix_text + "Remain -> " + min + ":" + ((sec < 10) ? "0" : "") + sec + " // " + topText + " " + this.getModeText();
             }
         }
 
@@ -127,6 +134,9 @@ class Paint {
                 break;
             case 3: // Outro
                 mtext += "Outro>>" + outroLocation + "sec before the end ";
+                break;
+            case 4: // S-Rantro
+                mtext += "S-Rantro>>" + minPercent + "%~" + maxPercent + "% (Flip: " + s_rantro_flip_count + ")";
                 break;
         }
         return mtext;

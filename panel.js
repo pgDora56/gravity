@@ -1,6 +1,10 @@
 //
 // 初期値
 //
+// import { gravitySettings } from './setting.js';
+include(`setting.js`);
+var jsonData = gravitySettings;
+
 
 window.DefinePanel("gravity", { author: "Dora F.", version: "24.03" });
 
@@ -10,6 +14,8 @@ function consoleWrite(msg) {
 
 var rootDirectory = "C:\\Users\\" + fb.ProfilePath.split("\\")[2] + "\\gravity_panel\\";
 consoleWrite("Root Directory: " + rootDirectory);
+
+
 
 // =================================================
 //
@@ -25,15 +31,22 @@ var outroLocation = 15; // Outroのスタート位置
 var ultimateAutoStop = 30; // Ultimate-modeのとき何分で止めるか
 var ultimateCountdown = 30; // Ultimate-modeのとき1曲流すか
 var ultimateDisplay = 5; // Ultimate-modeのとき何秒曲情報を表示するか
+var ultimateScoreCountTotal = 0; // Ultimate-modeの合計スコア値
+var ultimateScoreCount = 0; // Ultimate-modeのスコアカウント
 var is_adaptive = false; // Adaptive-modeであるかどうか
 var adaptive_list_numbers = []; // Adaptive-modeのリスト番号を記録
 var adaptive_playlist = []; // Adaptive-modeの実際のプレイリストを記録
 var adaptive_up_down = [3, -3]; // ランクが上がるためのpt/下がるpt
 var adaptive_now = [0, 0]; // 現在のランク/pt
 var adaptive_this_q_result = 0; // 再生中の曲の正誤を記録しておく(1:o, -1:x)
+var replayPauseLag = 0; // Pauseにしたあと再度Play可能になるまでの時間
+var replayLock = 0; // PauseのあとReplayをLockする
+var s_rantro_flip_count = 0; // S-RantroのFlip回数
+var ox_score = { "o": 0, "x": 0 };  // OX Counting
+var percent_score = { "correct": 0, "total": 0 };  // Percent Counting
 
 //  Propertyを受け取る
-var autoCopy = window.GetProperty("0. Autocopy - Enable", false);
+var autoCopy = window.GetProperty("0. Autocopy mode [off|on|start|open]", "off");  // if on and ultimate, it moves like open, else start
 var rantro_percent = window.GetProperty("1. Rantro - StartLocationRange", "10-90");
 var get_mix_percent = window.GetProperty("2. Mix Ratio - Intro:Rantro", "1:1");
 var get_outro_location = window.GetProperty("3. Outro - StartLocation", "15");
@@ -43,12 +56,17 @@ var ultimate_timeover_stop = window.GetProperty("4.3. Ultimate mode - Stop after
 var ultimate_countdown = window.GetProperty("4.4. Ultimate mode - Count down(sec)", "20");
 var ultimate_display = window.GetProperty("4.5. Ultimate mode - Display time(sec)", "5");
 var difficulty_balancing = window.GetProperty("4.6. Ultimate mode - Difficulty Balancing - Enable", false);
+var ultimate_score_counting = window.GetProperty("4.7.1. Ultimate mode - Score Counting(ny) - Enable", false);
+var ultimate_score_counting_ox = window.GetProperty("4.7.2. Ultimate mode - Score Counting(o/x) - Enable", false);
+var ultimate_score_counting_percent = window.GetProperty("4.7.3. Ultimate mode - Score Counting(%) - Enable", false);
 var all_memorize = window.GetProperty("5. All memorize - Enable", false);
 var adaptive_lists = window.GetProperty("6. Adaptive mode - Lists", "");
 var adaptive_rank_up = window.GetProperty("6.1. Adaptive mode - Rank up count", "3");
 var adaptive_rank_down = window.GetProperty("6.2. Adaptive mode - Rank down count", "-3");
 var adaptive_order_random = window.GetProperty("6.3. Adaptive mode - Order randomize", false); // Adaptive-modeのリスト順をランダムにする
 var adaptive_loop = window.GetProperty("6.4. Adaptive mode - Loop", false); // Adaptive-modeのリスト順をランダムにする
+var adaptive_back_zero = window.GetProperty("6.5. Adaptive mode - Back zero mode", false); // 誤答すると0に戻る
+var replay_pause_lag = window.GetProperty("99.1. Replay Lag after pause(sec)", "0"); // Pauseにしたあと再度Play可能になるまでの時間
 
 // チェック＆必要に応じてパース
 // Rantroのスタート位置
@@ -150,6 +168,14 @@ try {
     adaptive_now = [0, 0];
 }
 
+try {
+    replayPauseLag = parseInt(replay_pause_lag);
+    if (replayPauseLag < 0) replayPauseLag = 0;
+} catch (e) {
+    consoleWrite(e);
+    replayPauseLag = 0;
+}
+
 
 // ==========================================
 //
@@ -161,35 +187,45 @@ var display = [{ format: "", font: { family: "Meiryo UI", size: 10, color: [0, 0
 var defaultfont = { family: "Meiryo UI", size: 10, color: [0, 0, 0] };
 var isSpotify = false;
 var have_focus = false;
-var mode = 0; // 0 -> Intro, 1 -> Rantro, 2 -> Mix, 3 -> Outro
+var mode = 0; // 0 -> Intro, 1 -> Rantro, 2 -> Mix, 3 -> Outro, 4 -> S-Rantro
 var spotRecordTime = "";
 var judgeFormat = "[%program% - ]%title%[ / %artist%][ - %type%][ - $if2(%work_year%,%date%)]";
-var xhr = new ActiveXObject("Microsoft.XMLHTTP");
-var path = rootDirectory + "setting.json"; // 読み込む外部ファイル
-var jsonData = {};
-var partsHeight = window.Height;
-var display_num = 1;
+// var xhr = new ActiveXObject("Microsoft.XMLHTTP");
+// var path = rootDirectory + "setting.json"; // 読み込む外部ファイル
+// var partsHeight = window.Height;
+// var display_num = 1;
 var balancing_total = 0;
-xhr.open("GET", path, true);
-xhr.onreadystatechange = function () {
-    // ローカルファイル用
-    if (xhr.readyState === 4 && xhr.status === 0) {
-        const settingFile = xhr.responseText; // 外部ファイルの内容
-        jsonData = JSON.parse(settingFile);
-        defaultfont = jsonData.defaultfont;
-        judgeFormat = jsonData.format;
-        display_num = jsonData.display.length;
-        partsHeight = window.Height / display_num;
-        // console.log(jsonData);
-        if ("balancing" in jsonData) {
-            for (let key in jsonData["balancing"]) {
-                balancing_total += jsonData["balancing"][key];
-            }
-            // console.log("Balancing Total:", balancing_total);
-        }
+var defaultfont = jsonData.defaultfont;
+var judgeFormat = jsonData.format;
+var display_num = jsonData.display.length;
+var partsHeight = window.Height / display_num;
+// console.log(jsonData);
+if ("balancing" in jsonData) {
+    for (let key in jsonData["balancing"]) {
+        balancing_total += jsonData["balancing"][key];
     }
-};
-xhr.send(null);
+    // console.log("Balancing Total:", balancing_total);
+}
+// xhr.open("GET", path, true);
+// xhr.onreadystatechange = function () {
+//     // ローカルファイル用
+//     if (xhr.readyState === 4 && xhr.status === 0) {
+//         const settingFile = xhr.responseText; // 外部ファイルの内容
+//         jsonData = JSON.parse(settingFile);
+//         defaultfont = jsonData.defaultfont;
+//         judgeFormat = jsonData.format;
+//         display_num = jsonData.display.length;
+//         partsHeight = window.Height / display_num;
+//         // console.log(jsonData);
+//         if ("balancing" in jsonData) {
+//             for (let key in jsonData["balancing"]) {
+//                 balancing_total += jsonData["balancing"][key];
+//             }
+//             // console.log("Balancing Total:", balancing_total);
+//         }
+//     }
+// };
+// xhr.send(null);
 
 include(`${fb.ComponentPath}docs\\Flags.js`);
 include(`${fb.ComponentPath}docs\\Helpers.js`);
@@ -260,6 +296,7 @@ function on_mouse_lbtn_dblclk(x, y, mask) {
     let _context = fb.CreateContextMenuManager();
     let _basemenu = window.CreatePopupMenu();
     let _child = window.CreatePopupMenu();
+    let _recipeMenu = window.CreatePopupMenu();
 
     // start index at 1, NOT 0
     _basemenu.AppendMenuItem(MF_STRING, 6, 'View memo');
@@ -272,7 +309,17 @@ function on_mouse_lbtn_dblclk(x, y, mask) {
     _basemenu.AppendMenuItem(MF_STRING, 5, 'Save the current time as SABI');
     _basemenu.AppendMenuSeparator();
     // _basemenu.AppendMenuItem(MF_STRING, 8, 'Create filter list from active playlist');
-    _basemenu.AppendMenuItem(MF_STRING, 9, 'Cook playlist');
+    
+    // Add saved recipes to submenu
+    if (gravitySettings.playlistRecipes && gravitySettings.playlistRecipes.length > 0) {
+        for (let i = 0; i < gravitySettings.playlistRecipes.length; i++) {
+            _recipeMenu.AppendMenuItem(MF_STRING, 10 + i, gravitySettings.playlistRecipes[i].name);
+        }
+        _recipeMenu.AppendMenuSeparator();
+    }
+    _recipeMenu.AppendMenuItem(MF_STRING, 9, 'Manual input...');
+    _recipeMenu.AppendTo(_basemenu, MF_STRING, 'Cook playlist');
+    
     if (fb.GetNowPlaying()) {
         _basemenu.AppendMenuSeparator();
         _child.AppendTo(_basemenu, MF_STRING, 'Now Playing');
@@ -344,7 +391,7 @@ function on_mouse_lbtn_dblclk(x, y, mask) {
         //     }
         //     break;
         case 9:
-            // Cook playlist with cook json file
+            // Cook playlist with cook json file (Manual input)
             let ipt = utils.InputBox(0, "Enter cooking json", "Playlist Cooker", "");
             try {
                 let recipe = JSON.parse(ipt);
@@ -353,7 +400,22 @@ function on_mouse_lbtn_dblclk(x, y, mask) {
                 fb.ShowPopupMessage("An error has occurred:" + e, "Playlist Cooker");
                 break;
             }
+            break;
         default:
+            // Handle saved recipe selection (idx 10+)
+            if (idx >= 10 && gravitySettings.playlistRecipes) {
+                let recipeIdx = idx - 10;
+                if (recipeIdx < gravitySettings.playlistRecipes.length) {
+                    let savedRecipe = gravitySettings.playlistRecipes[recipeIdx];
+                    try {
+                        playlistCooker([savedRecipe]);
+                        fb.ShowPopupMessage("Playlist '" + savedRecipe.name + "' has been created!", "Playlist Cooker");
+                    } catch (e) {
+                        fb.ShowPopupMessage("An error has occurred:" + e, "Playlist Cooker");
+                    }
+                    break;
+                }
+            }
             _context.ExecuteByID(idx - 99);
             break;
     }
@@ -361,37 +423,24 @@ function on_mouse_lbtn_dblclk(x, y, mask) {
 
 function on_playback_time(time) {
     // 再生時に毎秒呼ばれる
+    if (mode == 4) {
+        s_rantro_flip_count += 1;
+        fb.PlaybackTime = getRantroLocation();
+    }
     if (!is_ultimate) return; // Ultimate-modeでなければearly return
     if (remain <= -1 * ultimateDisplay) {
         if (ultimate_timer <= 0) {
             // 時間が来てたら何もしない
             return;
         }
-        if (difficulty_balancing && balancing_total > 0) {
-            // Difficulty Balancing
-            let tot = 0;
-            let r = Math.floor(Math.random() * balancing_total);
-            // console.log("Balancing Rand", r)
-            for (let query in jsonData["balancing"]) {
-                tot += jsonData["balancing"][query];
-                if (tot > r) {
-                    let active_hl = plman.GetPlaylistItems(plman.PlayingPlaylist);
-                    let hl = fb.GetQueryItems(active_hl, query);
-                    let nextsong = Math.floor(Math.random() * hl.Count);
-                    // console.log(nextsong, hl[nextsong]);
-                    plman.AddItemToPlaybackQueue(hl[nextsong]);
-                    break;
-                }
-            }
-        }
+        difficulty_balancing_check();
         fb.Next();
     }
     if (ultimateAutoStop == 0) ultimate_timer++;
     else ultimate_timer--;
     calc_ultimate_remain(time);
     if (remain == 0) {
-        fn_gorec();
-        start_position = fb.PlaybackTime - ultimateCountdown;
+        ultimate_open();
     } else if (remain == 1 && ultimate_timeover_stop) {
         fb.Pause();
         return;
@@ -400,7 +449,12 @@ function on_playback_time(time) {
 
 function on_playback_new_track(handle) {
     if (is_adaptive) {
-        adaptive_now[1] += adaptive_this_q_result;
+        if (adaptive_back_zero && adaptive_now[1] > 0 && adaptive_this_q_result < 0) {
+            // 誤答で0に戻る
+            adaptive_now[1] = 0
+        } else {
+            adaptive_now[1] += adaptive_this_q_result;
+        }
         adaptive_this_q_result = 0;
         if (adaptive_now[0] == 0 && adaptive_now[1] < 0) {
             // 最低ランクで負の値にはいかない
@@ -427,13 +481,17 @@ function on_playback_new_track(handle) {
                 return;
             }
         }
+    } else if (ultimate_score_counting) {
+        ultimateScoreCountTotal += ultimateScoreCount;
+        ultimateScoreCount = 0;
     }
     consoleWrite(get_tf("%play_count%", handle))  // 再生数少ないのから再生する機能をつけるときよう
     window.Repaint();
     var nowPlayPath = fb.GetNowPlaying().Path;
     isSpotify = nowPlayPath.startsWith("spotify");
     consoleWrite("IsSpotify:" + isSpotify);
-    if (autoCopy) {
+    // when (autoCopy == start) || (autoCopy == on && !is_ultimate )
+    if (autoCopy == "start" || (autoCopy == "on" && !is_ultimate)) {
         let tf = get_tf();
         setClipboard(tf);
     }
@@ -454,12 +512,36 @@ function on_playback_new_track(handle) {
         case 3: // Outro
             fb.PlaybackTime = fb.PlaybackLength - outroLocation;
             break;
+        case 4: // S-Rantro
+            fb.PlaybackTime = getRantroLocation();
+            s_rantro_flip_count = 0;
+            break;
     }
 
     if (is_ultimate) {
         start_position = fb.PlaybackTime;
         calc_ultimate_remain(fb.PlaybackTime);
     }
+}
+
+function on_playback_pause(state) {
+    consoleWrite("Pause: " + state);
+    if (replayPauseLag <= 0) return;
+    if (state) {
+        // When paused
+        replayLock += 1;
+        setTimeout(() => {
+            replayLock -= 1;
+            if (replayLock < 0) replayLock = 0;
+        }, (replayPauseLag * 1000) + "")
+        return;
+    }
+    if (replayLock > 0) {
+        consoleWrite("repause " + replayLock);
+        fb.Pause();
+        return;
+    }
+    consoleWrite("not repause: " + replayLock);
 }
 
 function on_playback_starting(cmd, is_paused) {
@@ -489,6 +571,7 @@ function on_key_down(vkey) {
     else if (vkey == 40 || vkey == 74) {
         // Push Down / J
         // Play & Pause
+        replayLock = 0; // Downで止めた場合はreplayLockを向こうにする
         if (fb.IsPlaying) {
             fb.Pause();
         }
@@ -499,29 +582,76 @@ function on_key_down(vkey) {
     else if (vkey == 32 || vkey == 68) {
         // Push Space / D
         // Ultimate-mode - Show songdata
-        fn_gorec();
-        start_position = fb.PlaybackTime - ultimateCountdown;
+        ultimate_open();
     }
     else if (vkey == 81) {
         // Push Q
         // Adaptive-mode correct
-        if (!is_adaptive) return;
-        adaptive_this_q_result = 1;
+        if (ultimate_score_counting) {
+            ultimateScoreCount += 1;
+        }
+        if (ultimate_score_counting_ox) {
+            ox_score.o += 1;
+        }
+        if (ultimate_score_counting_percent) {
+            percent_score.correct += 1;
+        }
+        if (is_adaptive) {
+            adaptive_this_q_result = 1;
+        }
         window.Repaint();
     }
     else if (vkey == 87) {
         // Push W
         // Adaptive-mode wrong
-        if (!is_adaptive) return;
-        adaptive_this_q_result = -1;
+        if (ultimate_score_counting) {
+            ultimateScoreCount -= 1;
+        }
+        if (ultimate_score_counting_ox) {
+            ox_score.x += 1;
+        }
+        if (ultimate_score_counting_percent) {
+            percent_score.total += 1;
+        }
+        if (is_adaptive) {
+            adaptive_this_q_result = -1;
+        }
         window.Repaint();
     }
     else if (vkey == 69) {
         // Push E
         // Adaptive-mode reset 
-        if (!is_adaptive) return;
-        adaptive_this_q_result = 0;
+        if (ultimate_score_counting) {
+            ultimateScoreCount = 0;
+        }
+        if (is_adaptive) {
+            adaptive_this_q_result = 0;
+        }
         window.Repaint();
+    }
+    else if (vkey == 65) {
+        // Push A
+        if (ultimate_score_counting_ox) {
+            ox_score.o -= 1;
+            window.Repaint();
+        }
+        if (ultimate_score_counting_percent) {
+            percent_score.correct -= 1;
+            if (percent_score.correct < 0) percent_score.correct = 0;
+            window.Repaint();
+        }
+    }
+    else if (vkey == 83) {
+        // Push S
+        if (ultimate_score_counting_ox) {
+            ox_score.x -= 1;
+            window.Repaint();
+        }
+        if (ultimate_score_counting_percent) {
+            percent_score.total -= 1;
+            if (percent_score.total < 0) percent_score.total = 0;
+            window.Repaint();
+        }
     }
     else if (vkey == 82) {
         // Push R
@@ -531,6 +661,7 @@ function on_key_down(vkey) {
     else if (vkey == 27) {
         // Push ESC
         // ultimate_timeをリセットさせる
+        if (fb.IsPlaying && !fb.IsPaused) return;  // 再生中なら無視
         ultimate_timer = ultimateAutoStop * 60; // ultimate-mode用
         if (is_adaptive) {
             adaptive_playlist = [];
@@ -538,13 +669,18 @@ function on_key_down(vkey) {
             adaptive_playlist_change(0);
             adaptive_this_q_result = 0;
         }
+        if (ultimate_score_counting_percent) {
+            percent_score.correct = 0;
+            percent_score.total = 0;
+        }
+        difficulty_balancing_check();
         fb.Next();
         window.Repaint();
     }
     else if (vkey == 77) {
         // Push M
         // Mode change
-        mode = (mode + 1) % 4;
+        mode = (mode + 1) % 5;
         consoleWrite(mode);
         window.Repaint();
     }
@@ -559,6 +695,19 @@ function on_key_down(vkey) {
     else if (vkey == 222) {
         // Push Caret(^)
         fb.PlaybackTime = 0;
+    }
+    else if (vkey == 8) {
+        // Push Backspace
+        if (ultimate_score_counting_ox) {
+            ox_score.o = 0;
+            ox_score.x = 0;
+            window.Repaint();
+        }
+        if (ultimate_score_counting_percent) {
+            percent_score.correct = 0;
+            percent_score.total = 0;
+            window.Repaint();
+        }
     }
 }
 
@@ -900,7 +1049,15 @@ function createFilterList(handleList, ruleObject) {
 function playlistCooker(cookingJson) {
     for (let plidx = 0; plidx < cookingJson.length; plidx++) {
         let recipe = cookingJson[plidx];
-        let handleList = cookingPlaylist(recipe["recipe"]);
+        let handleList;
+        
+        // Check if totalCount is specified
+        if (recipe["totalCount"] && recipe["totalCount"] > 0) {
+            handleList = cookingPlaylistWithLimit(recipe["recipe"], recipe["totalCount"]);
+        } else {
+            handleList = cookingPlaylist(recipe["recipe"]);
+        }
+        
         console.log("[Cooker]", recipe["name"], ":", handleList.Count, "songs");
         plman.InsertPlaylistItems(
             plman.CreatePlaylist(plman.PlaylistCount, recipe["name"]),
@@ -920,4 +1077,85 @@ function cookingPlaylist(recipe) {
         }
     }
     return list;
+}
+
+function cookingPlaylistWithLimit(recipe, totalCount) {
+    let list = new FbMetadbHandleList();
+    let queries = Object.entries(recipe);
+    
+    // Calculate total ratio
+    let totalRatio = 0;
+    for (const [query, ratio] of queries) {
+        totalRatio += ratio;
+    }
+    
+    console.log("[Cooker] Total songs to pick:", totalCount, "Total ratio:", totalRatio);
+    
+    // Pick songs for each query based on ratio
+    for (const [query, ratio] of queries) {
+        let hl = fb.GetQueryItems(fb.GetLibraryItems(), query);
+        let pickCount = Math.round((totalCount * ratio) / totalRatio);
+        
+        // Don't pick more than available
+        pickCount = Math.min(pickCount, hl.Count);
+        
+        console.log("[Cooker]", pickCount, "songs from", query, "(available:", hl.Count + ")");
+        
+        // Randomly pick songs without duplication
+        if (pickCount > 0 && hl.Count > 0) {
+            let indices = [];
+            for (let i = 0; i < hl.Count; i++) {
+                indices.push(i);
+            }
+            
+            // Shuffle indices
+            for (let i = indices.length - 1; i > 0; i--) {
+                let j = Math.floor(Math.random() * (i + 1));
+                [indices[i], indices[j]] = [indices[j], indices[i]];
+            }
+            
+            // Pick first N songs
+            for (let i = 0; i < pickCount; i++) {
+                list.Add(hl[indices[i]]);
+            }
+        }
+    }
+    
+    return list;
+}
+
+function difficulty_balancing_check() {
+    if (difficulty_balancing && balancing_total > 0) {
+        // Difficulty Balancing
+        let tot = 0;
+        let r = Math.floor(Math.random() * balancing_total);
+        // console.log("Balancing Rand", r)
+        for (let query in jsonData["balancing"]) {
+            tot += jsonData["balancing"][query];
+            if (tot > r) {
+                consoleWrite("Balancing: " + query);
+                let active_hl = plman.GetPlaylistItems(plman.PlayingPlaylist);
+                let hl = fb.GetQueryItems(active_hl, query);
+                let nextsong = Math.floor(Math.random() * hl.Count);
+                // console.log(nextsong, hl[nextsong]);
+                plman.AddItemToPlaybackQueue(hl[nextsong]);
+                break;
+            }
+        }
+    }
+}
+
+function ultimate_open() {
+    fn_gorec();
+    start_position = fb.PlaybackTime - ultimateCountdown;
+
+    if (ultimate_score_counting_percent) {
+        percent_score.total += 1;
+    }
+
+    // when (autoCopy == start) || (autoCopy == on && !is_ultimate )
+    if (autoCopy == "open" || (autoCopy == "on" && is_ultimate)) {
+        let tf = get_tf();
+        setClipboard(tf);
+    }
 }

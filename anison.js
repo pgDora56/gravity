@@ -368,10 +368,13 @@ function _anisonParseSongPage(html) {
     out.arranger = arrangers.filter(_anisonTruthy).join(", ");
 
     // Tie-up table: <tr>...<a href="javascript:link('program',ID)">作品名</a>...<td>OP</td></tr>
-    // Prefer the row wrapped in <strong> (main tie-up).
-    var progRe = /<tr[^>]*>([\s\S]*?javascript:link\('program','\d+'\)[\s\S]*?)<\/tr>/g;
+    // Iterate per-row so we don't span across other tables (credits etc.) — a single
+    // non-greedy [\s\S]*? sandwich would happily swallow whole intervening rows.
+    // Prefer the row wrapped in <strong> (main tie-up) when one exists.
+    var trRe = /<tr[^>]*>([\s\S]*?)<\/tr>/g;
     var pm, mainRow = null, firstRow = null;
-    while ((pm = progRe.exec(html)) !== null) {
+    while ((pm = trRe.exec(html)) !== null) {
+        if (pm[1].indexOf("javascript:link('program'") < 0) continue;
         if (firstRow === null) firstRow = pm[1];
         if (pm[1].indexOf("<strong>") >= 0 && mainRow === null) mainRow = pm[1];
     }

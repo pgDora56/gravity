@@ -384,61 +384,100 @@ function _anisonScoreCandidate(candidate, queryTokens) {
 }
 
 
+// --- internal: title normalisation --------------------------------
+
+// Strip trailing "(...)" / "（...）" / "-...-" suffix blocks from a title.
+// Iterates so stacked suffixes ("Song -live- (instrumental)") collapse in
+// one call. Returns the cleaned title, or null if nothing was stripped or
+// the entire title would be consumed.
+function _anisonStripSuffix(title) {
+    if (!title) return null;
+    var t = title.replace(/\s+$/, "");
+    var original = t;
+    var changed = true;
+    while (changed) {
+        changed = false;
+        var m;
+        // Trailing (...) or （...） — content must not contain another bracket
+        m = t.match(/^(.*?)\s*[（(][^（(）)]+[）)]\s*$/);
+        if (m) {
+            var head = m[1].replace(/\s+$/, "");
+            if (head) { t = head; changed = true; continue; }
+        }
+        // Trailing -...- — content must not contain another dash
+        m = t.match(/^(.*?)\s*-[^-]+-\s*$/);
+        if (m) {
+            var head2 = m[1].replace(/\s+$/, "");
+            if (head2) { t = head2; changed = true; continue; }
+        }
+    }
+    return (t === original) ? null : t;
+}
+
+
 // --- internal: search orchestration -------------------------------
 
 function _anisonFetchFlow(title, artist, token) {
     var queryTokens = _anisonTokenizeArtist(artist);
-    var searchUrl = "http://anison.info/data/n.php?m=song&q=" + encodeURIComponent(title);
-    _anisonHttpGet(searchUrl, function (err, html) {
-        if (token !== anisonRequestToken) return; // stale
-        if (err) {
-            consoleWrite("[anison] search HTTP error: " + err);
-            anisonCurrentStatus = "error";
-            _anisonCacheWrite(title, artist, { miss: true, reason: "http_error" });
-            window.Repaint();
-            return;
-        }
-        var rows = _anisonParseSearchPage(html);
-        if (rows.length === 0) {
-            anisonCurrentStatus = "miss";
-            _anisonCacheWrite(title, artist, { miss: true, reason: "no_hits" });
-            window.Repaint();
-            return;
-        }
-        // Score and pick best
-        var best = null, bestScore = -1;
-        for (var i = 0; i < rows.length; i++) {
-            var sc = _anisonScoreCandidate(rows[i], queryTokens);
-            if (sc > bestScore) { bestScore = sc; best = rows[i]; }
-        }
-        if (!best) {
-            anisonCurrentStatus = "miss";
-            _anisonCacheWrite(title, artist, { miss: true, reason: "no_match" });
-            window.Repaint();
-            return;
-        }
-        // Fetch detail page
-        var detailUrl = "http://anison.info/data/song/" + best.song_id + ".html";
-        _anisonHttpGet(detailUrl, function (derr, dhtml) {
+
+    function trySearch(searchTitle, isRetry) {
+        var searchUrl = "http://anison.info/data/n.php?m=song&q=" + encodeURIComponent(searchTitle);
+        _anisonHttpGet(searchUrl, function (err, html) {
             if (token !== anisonRequestToken) return; // stale
-            if (derr) {
-                consoleWrite("[anison] detail HTTP error: " + derr);
+            if (err) {
+                consoleWrite("[anison] search HTTP error: " + err);
                 anisonCurrentStatus = "error";
-                _anisonCacheWrite(title, artist, { miss: true, reason: "detail_http_error" });
+                _anisonCacheWrite(title, artist, { miss: true, reason: "http_error" });
                 window.Repaint();
                 return;
             }
-            var parsed = _anisonParseSongPage(dhtml);
-            // Carry over program info from search row if detail page didn't capture it
-            if (!parsed.program && best.program) parsed.program = best.program;
-            if (!parsed.program_type && best.program_type) parsed.program_type = best.program_type;
-            parsed.song_id = best.song_id;
-            parsed.matched_score = bestScore;
-            anisonCurrentData = parsed;
-            anisonCurrentStatus = "done";
-            _anisonCacheWrite(title, artist, parsed);
-            anisonInFlight = false;
-            window.Repaint();
+            var rows = _anisonParseSearchPage(html);
+            if (rows.length === 0) {
+                // Retry once with suffix-stripped title (e.g. "Song -25 colors-" → "Song")
+                if (!isRetry) {
+                    var stripped = _anisonStripSuffix(title);
+                    if (stripped) {
+                        consoleWrite("[anison] no hits, retrying with stripped title: " + stripped);
+                        trySearch(stripped, true);
+                        return;
+                    }
+                }
+                anisonCurrentStatus = "miss";
+                _anisonCacheWrite(title, artist, { miss: true, reason: "no_hits" });
+                window.Repaint();
+                return;
+            }
+            // Score and pick best
+            var best = rows[0], bestScore = _anisonScoreCandidate(rows[0], queryTokens);
+            for (var i = 1; i < rows.length; i++) {
+                var sc = _anisonScoreCandidate(rows[i], queryTokens);
+                if (sc > bestScore) { bestScore = sc; best = rows[i]; }
+            }
+            // Fetch detail page
+            var detailUrl = "http://anison.info/data/song/" + best.song_id + ".html";
+            _anisonHttpGet(detailUrl, function (derr, dhtml) {
+                if (token !== anisonRequestToken) return; // stale
+                if (derr) {
+                    consoleWrite("[anison] detail HTTP error: " + derr);
+                    anisonCurrentStatus = "error";
+                    _anisonCacheWrite(title, artist, { miss: true, reason: "detail_http_error" });
+                    window.Repaint();
+                    return;
+                }
+                var parsed = _anisonParseSongPage(dhtml);
+                // Carry over program info from search row if detail page didn't capture it
+                if (!parsed.program && best.program) parsed.program = best.program;
+                if (!parsed.program_type && best.program_type) parsed.program_type = best.program_type;
+                parsed.song_id = best.song_id;
+                parsed.matched_score = bestScore;
+                anisonCurrentData = parsed;
+                anisonCurrentStatus = "done";
+                _anisonCacheWrite(title, artist, parsed);
+                anisonInFlight = false;
+                window.Repaint();
+            });
         });
-    });
+    }
+
+    trySearch(title, false);
 }

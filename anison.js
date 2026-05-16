@@ -386,9 +386,9 @@ function _anisonScoreCandidate(candidate, queryTokens) {
 
 // --- internal: title normalisation --------------------------------
 
-// Strip trailing "(...)" / "（...）" / "-...-" suffix blocks from a title.
-// Iterates so stacked suffixes ("Song -live- (instrumental)") collapse in
-// one call. Returns the cleaned title, or null if nothing was stripped or
+// Strip trailing "(...)" / "（...）" / "-...-" / "〜...〜" suffix blocks from a
+// title. Iterates so stacked suffixes ("Song -live- (instrumental)") collapse
+// in one call. Returns the cleaned title, or null if nothing was stripped or
 // the entire title would be consumed.
 function _anisonStripSuffix(title) {
     if (!title) return null;
@@ -409,6 +409,12 @@ function _anisonStripSuffix(title) {
         if (m) {
             var head2 = m[1].replace(/\s+$/, "");
             if (head2) { t = head2; changed = true; continue; }
+        }
+        // Trailing 〜...〜 / ～...～ / ~...~ — content must not contain another tilde
+        m = t.match(/^(.*?)\s*[〜～~][^〜～~]+[〜～~]\s*$/);
+        if (m) {
+            var head3 = m[1].replace(/\s+$/, "");
+            if (head3) { t = head3; changed = true; continue; }
         }
     }
     return (t === original) ? null : t;

@@ -16,12 +16,16 @@ class Paint {
         if (display.subline != undefined) {
             var subfnt = fntToSub(display.font, display.subline.font);
             var subclr = RGB(subfnt.color[0], subfnt.color[1], subfnt.color[2]);
-            var ms = gr.MeasureString(fb.TitleFormat(display.subline.format).Eval(), fnt(subfnt), this.leftMargin, this.totalHeight, window.Width - this.leftMargin, 10000, 0);
-            gr.DrawString(fb.TitleFormat(display.subline.format).Eval(), fnt(subfnt), subclr, this.leftMargin, this.totalHeight, window.Width - this.leftMargin, ms.Height + 1, 0);
+            var subFmt = anisonExpandPlaceholders(display.subline.format);
+            var subText = fb.TitleFormat(subFmt).Eval();
+            var ms = gr.MeasureString(subText, fnt(subfnt), this.leftMargin, this.totalHeight, window.Width - this.leftMargin, 10000, 0);
+            gr.DrawString(subText, fnt(subfnt), subclr, this.leftMargin, this.totalHeight, window.Width - this.leftMargin, ms.Height + 1, 0);
             this.totalHeight += ms.Height + 1;
         }
-        var mainHeight = gr.MeasureString(fb.TitleFormat(display.format).Eval(), fnt(display.font), this.leftMargin, this.totalHeight, window.Width - this.leftMargin, 10000, 0).Height;
-        gr.DrawString(fb.TitleFormat(display.format).Eval(), fnt(display.font), fntclr(display.font), this.leftMargin, this.totalHeight, window.Width - this.leftMargin, mainHeight + 1, 0);
+        var mainFmt = anisonExpandPlaceholders(display.format);
+        var mainText = fb.TitleFormat(mainFmt).Eval();
+        var mainHeight = gr.MeasureString(mainText, fnt(display.font), this.leftMargin, this.totalHeight, window.Width - this.leftMargin, 10000, 0).Height;
+        gr.DrawString(mainText, fnt(display.font), fntclr(display.font), this.leftMargin, this.totalHeight, window.Width - this.leftMargin, mainHeight + 1, 0);
         let h = (ms == undefined) ? mainHeight - 8 : ms.Height + mainHeight - 8;
         gr.FillSolidRect(5, startXloc + 4, 3, h, this.headerColors[i % 5]);
         this.totalHeight += mainHeight;

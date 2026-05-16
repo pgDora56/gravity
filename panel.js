@@ -231,6 +231,7 @@ if ("balancing" in jsonData) {
 include(`${fb.ComponentPath}docs\\Flags.js`);
 include(`${fb.ComponentPath}docs\\Helpers.js`);
 include(`common.js`);
+include(`anison.js`);
 include(`paint.js`);
 var paint = new Paint();
 
@@ -326,7 +327,14 @@ function on_mouse_lbtn_dblclk(x, y, mask) {
     }
     _recipeMenu.AppendMenuItem(MF_STRING, 9, 'Manual input...');
     _recipeMenu.AppendTo(_basemenu, MF_STRING, 'Cook playlist');
-    
+
+    _basemenu.AppendMenuSeparator();
+    let _anisonMenu = window.CreatePopupMenu();
+    _anisonMenu.AppendMenuItem(MF_STRING, 50, 'Fetch info for current song');
+    _anisonMenu.AppendMenuItem(MF_STRING, 51, 'Clear cache (current song)');
+    _anisonMenu.AppendMenuItem(MF_STRING, 52, 'Clear cache (all)');
+    _anisonMenu.AppendTo(_basemenu, MF_STRING, 'Anison Info');
+
     if (fb.GetNowPlaying()) {
         _basemenu.AppendMenuSeparator();
         _child.AppendTo(_basemenu, MF_STRING, 'Now Playing');
@@ -408,6 +416,31 @@ function on_mouse_lbtn_dblclk(x, y, mask) {
                 break;
             }
             break;
+        case 50: {
+            // Anison: Fetch info for current song
+            if (!fb.GetNowPlaying()) {
+                fb.ShowPopupMessage("Nothing is playing.", "Anison Info");
+                break;
+            }
+            let _t = get_tf("%title%");
+            let _a = get_tf("%artist%");
+            anisonOnTrackChanged();
+            anisonRequestForTrack(_t, _a);
+            break;
+        }
+        case 51: {
+            // Anison: Clear cache (current song)
+            if (!fb.GetNowPlaying()) {
+                fb.ShowPopupMessage("Nothing is playing.", "Anison Info");
+                break;
+            }
+            anisonClearCacheCurrent(get_tf("%title%"), get_tf("%artist%"));
+            break;
+        }
+        case 52:
+            // Anison: Clear cache (all)
+            anisonClearCacheAll();
+            break;
         default:
             // Handle saved recipe selection (idx 10+)
             if (idx >= 10 && gravitySettings.playlistRecipes) {
@@ -463,6 +496,12 @@ function on_playback_new_track(handle) {
         // 下のwindow.Repaint()前に吹き出し状態へ戻して新曲の答えがチラ見えするのを防ぐ
         remain = ultimateCountdown;
         message_window = String(remain);
+    }
+    anisonOnTrackChanged();
+    if (anisonAutoFetch) {
+        var _title = get_tf("%title%", handle);
+        var _artist = get_tf("%artist%", handle);
+        anisonRequestForTrack(_title, _artist);
     }
     if (is_adaptive) {
         if (adaptive_back_zero && adaptive_now[1] > 0 && adaptive_this_q_result < 0) {

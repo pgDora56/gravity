@@ -429,17 +429,23 @@ function on_mouse_lbtn_dblclk(x, y, mask) {
             break;
         }
         case 51: {
-            // Anison: Clear cache (current song)
+            // Anison: Clear cache (current song) → immediately re-fetch
             if (!fb.GetNowPlaying()) {
                 fb.ShowPopupMessage("Nothing is playing.", "Anison Info");
                 break;
             }
-            anisonClearCacheCurrent(get_tf("%title%"), get_tf("%artist%"));
+            let _t51 = get_tf("%title%");
+            let _a51 = get_tf("%artist%");
+            anisonClearCacheCurrent(_t51, _a51);
+            anisonRequestForTrack(_t51, _a51);
             break;
         }
         case 52:
-            // Anison: Clear cache (all)
+            // Anison: Clear cache (all) → re-fetch the now playing track if any
             anisonClearCacheAll();
+            if (fb.GetNowPlaying()) {
+                anisonRequestForTrack(get_tf("%title%"), get_tf("%artist%"));
+            }
             break;
         default:
             // Handle saved recipe selection (idx 10+)

@@ -421,10 +421,166 @@ function _anisonStripSuffix(title) {
 }
 
 
+// --- internal: person-page parsing --------------------------------
+
+// Pick the best matching person_id from a person search result page.
+// Exact (case-insensitive) name match wins; otherwise return the first hit.
+function _anisonFindBestPersonId(html, artistName) {
+    var re = /<a href="javascript:link\('person','(\d+)'\)">([^<]+)<\/a>/g;
+    var artLower = (artistName || "").toLowerCase();
+    var firstId = null;
+    var m;
+    while ((m = re.exec(html)) !== null) {
+        var name = _anisonHtmlDecode(m[2]);
+        if (firstId === null) firstId = parseInt(m[1]);
+        if (name.toLowerCase() === artLower) return parseInt(m[1]);
+    }
+    return firstId;
+}
+
+// Parse the 担当曲 table on /data/person/{id}.html (class="sorted", 6 cols).
+// Returns [{ song_id, title, role, program, oped }].
+function _anisonParsePersonSongs(html) {
+    var songs = [];
+    var tableMatch = html.match(/<table[^>]*class="sorted"[^>]*>([\s\S]*?)<\/table>/);
+    if (!tableMatch) return songs;
+    var trRe = /<tr[^>]*>([\s\S]*?)<\/tr>/g;
+    var m;
+    while ((m = trRe.exec(tableMatch[1])) !== null) {
+        var row = m[1];
+        if (row.indexOf("javascript:link('song'") < 0) continue;
+        var songLink = row.match(/<a href="javascript:link\('song','(\d+)'\)">([^<]+)<\/a>/);
+        if (!songLink) continue;
+        var role = (row.match(/headers="type"[^>]*title="([^"]*)"/) || [])[1] || "";
+        var prog = (row.match(/headers="program"[^>]*title="([^"]*)"/) || [])[1] || "";
+        var oped = (row.match(/headers="oped"[^>]*title="([^"]*)"/) || [])[1] || "";
+        songs.push({
+            song_id: parseInt(songLink[1]),
+            title: _anisonHtmlDecode(songLink[2]),
+            role: _anisonHtmlDecode(role),
+            program: _anisonHtmlDecode(prog),
+            oped: _anisonHtmlDecode(oped)
+        });
+    }
+    return songs;
+}
+
+// Find the row in `songs` matching `title`. Prefers (1) exact title + role=歌手,
+// then (2) exact title any role, then (3) prefix match + 歌手, then (4) any prefix.
+function _anisonMatchSongInList(songs, title) {
+    if (!songs || !songs.length || !title) return null;
+    var tl = title.toLowerCase();
+    var exS = null, exO = null, pxS = null, pxO = null;
+    for (var i = 0; i < songs.length; i++) {
+        var s = songs[i];
+        var st = s.title.toLowerCase();
+        var sing = (s.role === "歌手");
+        if (st === tl) {
+            if (sing && !exS) exS = s;
+            else if (!sing && !exO) exO = s;
+        } else if (st.indexOf(tl) === 0 || tl.indexOf(st) === 0) {
+            if (sing && !pxS) pxS = s;
+            else if (!sing && !pxO) pxO = s;
+        }
+    }
+    return exS || exO || pxS || pxO || null;
+}
+
+
 // --- internal: search orchestration -------------------------------
 
 function _anisonFetchFlow(title, artist, token) {
     var queryTokens = _anisonTokenizeArtist(artist);
+
+    function reportMiss(reason) {
+        anisonCurrentStatus = "miss";
+        _anisonCacheWrite(title, artist, { miss: true, reason: reason });
+        anisonInFlight = false;
+        window.Repaint();
+    }
+
+    function fetchDetailAndStore(song_id, scoreForCache, programFromHit, programTypeFromHit) {
+        var detailUrl = "http://anison.info/data/song/" + song_id + ".html";
+        _anisonHttpGet(detailUrl, function (derr, dhtml) {
+            if (token !== anisonRequestToken) return; // stale
+            if (derr) {
+                consoleWrite("[anison] detail HTTP error: " + derr);
+                anisonCurrentStatus = "error";
+                _anisonCacheWrite(title, artist, { miss: true, reason: "detail_http_error" });
+                window.Repaint();
+                return;
+            }
+            var parsed = _anisonParseSongPage(dhtml);
+            if (!parsed.program && programFromHit) parsed.program = programFromHit;
+            if (!parsed.program_type && programTypeFromHit) parsed.program_type = programTypeFromHit;
+            parsed.song_id = song_id;
+            parsed.matched_score = scoreForCache;
+            anisonCurrentData = parsed;
+            anisonCurrentStatus = "done";
+            _anisonCacheWrite(title, artist, parsed);
+            anisonInFlight = false;
+            window.Repaint();
+        });
+    }
+
+    // weakBest / weakBestScore: title-search's best result when its score was
+    // below the strong-match threshold. Used as a last-resort fallback only
+    // when the artist itself isn't on anison.info (lenient miss). When the
+    // artist IS on anison.info but the song isn't in her list, we report a
+    // strict miss instead — the song is determined to not exist.
+    function tryPersonFallback(weakBest, weakBestScore) {
+        var artistQuery = queryTokens[0];
+        if (!artistQuery) {
+            if (weakBest) fetchDetailAndStore(weakBest.song_id, weakBestScore, weakBest.program, weakBest.program_type);
+            else reportMiss("no_artist_no_hits");
+            return;
+        }
+        var personSearchUrl = "http://anison.info/data/n.php?m=person&q=" + encodeURIComponent(artistQuery);
+        _anisonHttpGet(personSearchUrl, function (err, html) {
+            if (token !== anisonRequestToken) return;
+            if (err) {
+                consoleWrite("[anison] person search error: " + err);
+                if (weakBest) fetchDetailAndStore(weakBest.song_id, weakBestScore, weakBest.program, weakBest.program_type);
+                else reportMiss("person_search_error");
+                return;
+            }
+            var personId = _anisonFindBestPersonId(html, artistQuery);
+            if (!personId) {
+                // Artist not on anison.info — lenient: use weak title hit if any
+                if (weakBest) {
+                    consoleWrite("[anison] person not found, using weak title match");
+                    fetchDetailAndStore(weakBest.song_id, weakBestScore, weakBest.program, weakBest.program_type);
+                } else {
+                    reportMiss("person_not_found");
+                }
+                return;
+            }
+            var personUrl = "http://anison.info/data/person/" + personId + ".html";
+            _anisonHttpGet(personUrl, function (perr, phtml) {
+                if (token !== anisonRequestToken) return;
+                if (perr) {
+                    consoleWrite("[anison] person page error: " + perr);
+                    if (weakBest) fetchDetailAndStore(weakBest.song_id, weakBestScore, weakBest.program, weakBest.program_type);
+                    else reportMiss("person_page_error");
+                    return;
+                }
+                var songs = _anisonParsePersonSongs(phtml);
+                var match = _anisonMatchSongInList(songs, title);
+                if (!match) {
+                    var stripped = _anisonStripSuffix(title);
+                    if (stripped) match = _anisonMatchSongInList(songs, stripped);
+                }
+                if (match) {
+                    consoleWrite("[anison] person fallback found song_id=" + match.song_id);
+                    fetchDetailAndStore(match.song_id, 9999, match.program, match.oped);
+                } else {
+                    // Person found, song not in her list — strict miss
+                    consoleWrite("[anison] person found but song not in her list, miss");
+                    reportMiss("song_not_in_person_list");
+                }
+            });
+        });
+    }
 
     function trySearch(searchTitle, isRetry) {
         var searchUrl = "http://anison.info/data/n.php?m=song&q=" + encodeURIComponent(searchTitle);
@@ -439,7 +595,7 @@ function _anisonFetchFlow(title, artist, token) {
             }
             var rows = _anisonParseSearchPage(html);
             if (rows.length === 0) {
-                // Retry once with suffix-stripped title (e.g. "Song -25 colors-" → "Song")
+                // Retry once with suffix-stripped title
                 if (!isRetry) {
                     var stripped = _anisonStripSuffix(title);
                     if (stripped) {
@@ -448,40 +604,25 @@ function _anisonFetchFlow(title, artist, token) {
                         return;
                     }
                 }
-                anisonCurrentStatus = "miss";
-                _anisonCacheWrite(title, artist, { miss: true, reason: "no_hits" });
-                window.Repaint();
+                if (queryTokens.length > 0) tryPersonFallback(null, 0);
+                else reportMiss("no_hits");
                 return;
             }
-            // Score and pick best
             var best = rows[0], bestScore = _anisonScoreCandidate(rows[0], queryTokens);
             for (var i = 1; i < rows.length; i++) {
                 var sc = _anisonScoreCandidate(rows[i], queryTokens);
                 if (sc > bestScore) { bestScore = sc; best = rows[i]; }
             }
-            // Fetch detail page
-            var detailUrl = "http://anison.info/data/song/" + best.song_id + ".html";
-            _anisonHttpGet(detailUrl, function (derr, dhtml) {
-                if (token !== anisonRequestToken) return; // stale
-                if (derr) {
-                    consoleWrite("[anison] detail HTTP error: " + derr);
-                    anisonCurrentStatus = "error";
-                    _anisonCacheWrite(title, artist, { miss: true, reason: "detail_http_error" });
-                    window.Repaint();
-                    return;
-                }
-                var parsed = _anisonParseSongPage(dhtml);
-                // Carry over program info from search row if detail page didn't capture it
-                if (!parsed.program && best.program) parsed.program = best.program;
-                if (!parsed.program_type && best.program_type) parsed.program_type = best.program_type;
-                parsed.song_id = best.song_id;
-                parsed.matched_score = bestScore;
-                anisonCurrentData = parsed;
-                anisonCurrentStatus = "done";
-                _anisonCacheWrite(title, artist, parsed);
-                anisonInFlight = false;
-                window.Repaint();
-            });
+            if (bestScore >= 1000 || queryTokens.length === 0) {
+                // Strong artist match or no artist tag to score against — take it
+                fetchDetailAndStore(best.song_id, bestScore, best.program, best.program_type);
+            } else {
+                // Weak score: title hit but no exact artist. anison.info's title search
+                // paginates 100 per page and "ME" returns ~6700 rows — the correct
+                // song may simply not be on page 1. Fall back to artist-first lookup.
+                consoleWrite("[anison] weak title-search score=" + bestScore + ", trying person fallback");
+                tryPersonFallback(best, bestScore);
+            }
         });
     }
 

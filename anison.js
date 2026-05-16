@@ -101,9 +101,13 @@ function anisonExpandPlaceholders(formatStr) {
     return formatStr.replace(/!(program|composer|lyricist|arranger|program_type|genre)!/g, function (_, field) {
         if (anisonCurrentStatus === "fetching") return "検索中";
         if (anisonCurrentStatus === "done" && anisonCurrentData) {
-            return anisonCurrentData[field] || "";
+            var v = anisonCurrentData[field];
+            if (v) return v;
         }
-        return "";
+        // Empty / not yet loaded / miss / error: emit a virtual foobar field
+        // reference so foobar's `[expr]` suppression (which requires every
+        // referenced field to have a value) naturally hides the bracket.
+        return "%__anison_" + field + "__%";
     });
 }
 

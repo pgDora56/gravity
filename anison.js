@@ -95,20 +95,91 @@ function anisonRequestForTrack(title, artist) {
     _anisonFetchFlow(title, artist, myToken);
 }
 
+// Expand !program! / !composer! / !lyricist! / !arranger! / !program_type! /
+// !genre! placeholders in a title-format string.
+//
+// Foobar's [expr] suppression rule (the one we want to honour) is:
+//   "output expr iff at least one field reference inside has a value;
+//    if all referenced fields are missing, suppress."
+//
+// foobar only knows about %field% references — it has no view onto !field!.
+// To make !field! behave the same way without polluting tracks with fake
+// tags, two passes are run:
+//   Pass 1: walk brackets manually. For each `[...]` whose only field
+//     references are anison ones, keep the bracket iff at least one of
+//     those !field! values is present; otherwise drop the whole bracket.
+//     Brackets that mix !field! with %field% are left alone — foobar's
+//     own %field% logic decides their fate.
+//   Pass 2: substitute every surviving !field! with its plain value (or
+//     "" if missing). foobar then sees no anison-specific references
+//     and falls back to its normal evaluation for %field% / functions.
 function anisonExpandPlaceholders(formatStr) {
     if (!formatStr) return formatStr;
     if (formatStr.indexOf("!") < 0) return formatStr;
-    return formatStr.replace(/!(program|composer|lyricist|arranger|program_type|genre)!/g, function (_, field) {
-        if (anisonCurrentStatus === "fetching") return "検索中";
-        if (anisonCurrentStatus === "done" && anisonCurrentData) {
-            var v = anisonCurrentData[field];
-            if (v) return v;
-        }
-        // Empty / not yet loaded / miss / error: emit a virtual foobar field
-        // reference so foobar's `[expr]` suppression (which requires every
-        // referenced field to have a value) naturally hides the bracket.
-        return "%__anison_" + field + "__%";
+    var afterBrackets = _anisonProcessBrackets(formatStr);
+    return afterBrackets.replace(/!(program|composer|lyricist|arranger|program_type|genre)!/g, function (_, f) {
+        return _anisonFieldValue(f);
     });
+}
+
+function _anisonFieldHasValue(field) {
+    if (anisonCurrentStatus === "fetching") return true;
+    if (anisonCurrentStatus === "done" && anisonCurrentData && anisonCurrentData[field]) return true;
+    return false;
+}
+
+function _anisonFieldValue(field) {
+    if (anisonCurrentStatus === "fetching") return "検索中";
+    if (anisonCurrentStatus === "done" && anisonCurrentData) {
+        return anisonCurrentData[field] || "";
+    }
+    return "";
+}
+
+function _anisonProcessBrackets(formatStr) {
+    var result = "";
+    var i = 0;
+    while (i < formatStr.length) {
+        var ch = formatStr.charAt(i);
+        if (ch === '[') {
+            // Find matching ']' tracking depth
+            var depth = 1;
+            var end = i + 1;
+            while (end < formatStr.length && depth > 0) {
+                var c = formatStr.charAt(end);
+                if (c === '[') depth++;
+                else if (c === ']') {
+                    depth--;
+                    if (depth === 0) break;
+                }
+                end++;
+            }
+            var inner = formatStr.substring(i + 1, end);
+            var processedInner = _anisonProcessBrackets(inner); // handle nested brackets first
+
+            var anisonFields = processedInner.match(/!(program|composer|lyricist|arranger|program_type|genre)!/g);
+            if (!anisonFields) {
+                // No !field! references left — pass through, foobar handles %field% rules
+                result += '[' + processedInner + ']';
+            } else if (/%[^%]+%/.test(processedInner)) {
+                // Mixed bracket — keep, let foobar's %field% logic decide suppression
+                result += '[' + processedInner + ']';
+            } else {
+                // Pure anison bracket — manual suppression
+                var hasAny = false;
+                for (var j = 0; j < anisonFields.length; j++) {
+                    if (_anisonFieldHasValue(anisonFields[j].replace(/!/g, ''))) { hasAny = true; break; }
+                }
+                if (hasAny) result += '[' + processedInner + ']';
+                // else: drop the bracket entirely
+            }
+            i = end + 1;
+        } else {
+            result += ch;
+            i++;
+        }
+    }
+    return result;
 }
 
 function anisonClearCacheCurrent(title, artist) {

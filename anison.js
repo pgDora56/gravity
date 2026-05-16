@@ -68,6 +68,11 @@ function anisonOnTrackChanged() {
 }
 
 function anisonRequestForTrack(title, artist) {
+    // Tags often carry leading/trailing whitespace (including U+3000 idiographic
+    // space) that breaks anison.info's exact-match search — strip those before
+    // anything else so cache keys also stay consistent.
+    title = _anisonTrimWs(title);
+    artist = _anisonTrimWs(artist);
     if (!title) {
         anisonCurrentStatus = "idle";
         anisonCurrentData = null;
@@ -217,7 +222,9 @@ function anisonClearCacheAll() {
 // --- internal: cache ----------------------------------------------
 
 function _anisonCacheKey(title, artist) {
-    var k = (title || "") + "__" + (artist || "");
+    // Trim whitespace (incl. U+3000) so callers passing raw %title%/%artist%
+    // produce the same key as the trimmed values used in anisonRequestForTrack.
+    var k = _anisonTrimWs(title) + "__" + _anisonTrimWs(artist);
     // Strip chars invalid in Windows filenames + control chars.
     k = k.replace(/[<>:"/\\|?*\x00-\x1f]/g, "_");
     if (k.length > 180) k = k.substring(0, 180);
@@ -429,15 +436,37 @@ function _anisonStrip(s) {
 
 function _anisonTruthy(x) { return !!x; }
 
+function _anisonTrimWs(s) {
+    if (!s) return "";
+    return s.replace(/^[\s　]+|[\s　]+$/g, "");
+}
+
 
 // --- internal: scoring --------------------------------------------
 
 function _anisonTokenizeArtist(artist) {
     if (!artist) return [];
-    // Split by configured delimiters
     var delim = anisonArtistDelimiters || ",";
     var re = new RegExp("[" + delim.replace(/[\-\[\]\/\\^$*+?.()|{}]/g, "\\$&") + "]");
-    return artist.split(re).map(function (s) { return s.replace(/^\s+|\s+$/g, "").toLowerCase(); }).filter(_anisonTruthy);
+    var raw = artist.split(re);
+    var tokens = [];
+    for (var i = 0; i < raw.length; i++) {
+        var t = _anisonTrimWs(raw[i]);
+        if (!t) continue;
+        // Character(CV:Seiyuu) style — split into both names. Put seiyuu first so
+        // person-fallback (which uses tokens[0]) hits the real person on anison.info
+        // rather than the character role.
+        var cv = t.match(/^(.+?)\s*[(（]\s*CV[:：.]\s*(.+?)\s*[)）]\s*$/i);
+        if (cv) {
+            var character = _anisonTrimWs(cv[1]);
+            var seiyuu = _anisonTrimWs(cv[2]);
+            if (seiyuu) tokens.push(seiyuu.toLowerCase());
+            if (character) tokens.push(character.toLowerCase());
+        } else {
+            tokens.push(t.toLowerCase());
+        }
+    }
+    return tokens;
 }
 
 function _anisonScoreCandidate(candidate, queryTokens) {

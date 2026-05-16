@@ -98,7 +98,7 @@ function anisonRequestForTrack(title, artist) {
 function anisonExpandPlaceholders(formatStr) {
     if (!formatStr) return formatStr;
     if (formatStr.indexOf("!") < 0) return formatStr;
-    return formatStr.replace(/!(program|composer|lyricist|arranger|program_type)!/g, function (_, field) {
+    return formatStr.replace(/!(program|composer|lyricist|arranger|program_type|genre)!/g, function (_, field) {
         if (anisonCurrentStatus === "fetching") return "検索中";
         if (anisonCurrentStatus === "done" && anisonCurrentData) {
             return anisonCurrentData[field] || "";
@@ -246,11 +246,12 @@ function _anisonParseSearchPage(html) {
 }
 
 // Song detail page (/data/song/{id}.html)
-// Returns: { program, program_type, composer, lyricist, arranger, artists, characters }
+// Returns: { program, program_type, genre, composer, lyricist, arranger, artists, characters }
 function _anisonParseSongPage(html) {
     var out = {
         program: "",
         program_type: "",
+        genre: "",
         composer: "",
         lyricist: "",
         arranger: "",
@@ -303,6 +304,13 @@ function _anisonParseSongPage(html) {
     if (targetRow) {
         var nameMatch = targetRow.match(/javascript:link\('program','\d+'\)">([^<]+)</);
         if (nameMatch) out.program = _anisonHtmlDecode(nameMatch[1]);
+        // Genre code lives in the 1st <td> as "TV テレビアニメーション" / "GM ゲーム" / "DR ドラマ" etc.
+        var firstTd = targetRow.match(/<td[^>]*>([\s\S]*?)<\/td>/);
+        if (firstTd) {
+            var genreText = _anisonStrip(firstTd[1]);
+            var gm = genreText.match(/^([A-Z]{2})\b/);
+            if (gm) out.genre = gm[1];
+        }
         // OP/ED token usually in the 3rd <td>, with optional number
         var opedMatch = targetRow.match(/<td[^>]*>\s*<(?:strong|stong)>?\s*(OP|ED|IN|IM|AR)\s*(\d*)\s*<\/(?:strong|stong)>?\s*<\/td>/i);
         if (!opedMatch) opedMatch = targetRow.match(/<td[^>]*>\s*(OP|ED|IN|IM|AR)\s*(\d*)\s*<\/td>/i);

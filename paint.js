@@ -164,4 +164,63 @@ class Paint {
         gr.FillEllipse(x, y, w, h, RGB(clr[0], clr[1], clr[2]));
         gr.DrawEllipse(x, y, w, h, 5, RGB(128, 128, 128));
     }
+
+    // スコア推移グラフを背景に薄く描画する
+    // @param gr GdiGraphics
+    scoreGraph(gr) {
+        // 履歴が2問未満の場合は描画しない
+        if (percent_score_history.length < 2) return;
+
+        // グラフの描画領域を設定（ヘッダの下、メインコンテンツの背景）
+        let graphX = 30;
+        let graphY = this.headerH + 20;
+        let graphWidth = window.Width - 60;
+        let graphHeight = window.Height - this.headerH - 40;
+
+        // 最小サイズチェック
+        if (graphWidth < 100 || graphHeight < 100) return;
+
+        // 透明度付きの色を設定（0xAARRGGBB形式）
+        // alpha = 50 (約20%透明度), RGB(100, 150, 200)
+        let lineColor = 0x32648CC8;  // 50% transparent blue
+        let gridColor = 0x19C8C8C8;  // 10% transparent gray
+        let lineWidth = 2;
+
+        // 補助線を描画（0%, 50%, 100%）
+        for (let i = 0; i <= 2; i++) {
+            let y = graphY + graphHeight - (graphHeight * i / 2);
+            gr.DrawLine(graphX, y, graphX + graphWidth, y, 1, gridColor);
+        }
+
+        // データポイント間の幅を計算
+        let pointSpacing = graphWidth / (percent_score_history.length - 1);
+
+        // 折れ線グラフを描画
+        for (let i = 0; i < percent_score_history.length - 1; i++) {
+            // 現在のポイントと次のポイントの座標を計算
+            let x1 = graphX + (i * pointSpacing);
+            let y1 = graphY + graphHeight - (percent_score_history[i] * graphHeight);
+            let x2 = graphX + ((i + 1) * pointSpacing);
+            let y2 = graphY + graphHeight - (percent_score_history[i + 1] * graphHeight);
+
+            // 線を描画
+            gr.DrawLine(x1, y1, x2, y2, lineWidth, lineColor);
+        }
+
+        // %表示用のフォント（小さめ、半透明）
+        let textFont = gdi.Font("Meiryo UI", 12, 0);
+        let textColor = 0x64648CC8;  // 40% transparent blue
+
+        // データポイントを小さな円で描画し、全てに%を表示
+        for (let i = 0; i < percent_score_history.length; i++) {
+            let x = graphX + (i * pointSpacing);
+            let y = graphY + graphHeight - (percent_score_history[i] * graphHeight);
+            gr.FillEllipse(x - 3, y - 3, 6, 6, lineColor);
+            
+            // 各ポイントに%を表示
+            let percentText = Math.round(percent_score_history[i] * 100) + "%";
+            let textWidth = gr.MeasureString(percentText, textFont, 0, 0, 1000, 1000, 0).Width;
+            gr.DrawString(percentText, textFont, textColor, x - textWidth / 2, y - 20, textWidth + 10, 20, 0);
+        }
+    }
 }

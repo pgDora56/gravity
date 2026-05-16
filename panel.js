@@ -44,6 +44,7 @@ var replayLock = 0; // PauseのあとReplayをLockする
 var s_rantro_flip_count = 0; // S-RantroのFlip回数
 var ox_score = { "o": 0, "x": 0 };  // OX Counting
 var percent_score = { "correct": 0, "total": 0 };  // Percent Counting
+var percent_score_history = [];  // Percent Score History for graph
 
 //  Propertyを受け取る
 var autoCopy = window.GetProperty("0. Autocopy mode [off|on|start|open]", "off");  // if on and ultimate, it moves like open, else start
@@ -251,6 +252,12 @@ function on_paint(gr) {
     //
     paint.header(gr, have_focus);
 
+    // スコア推移グラフの描画（背景として）
+    // 出題中も表示する
+    if (ultimate_score_counting_percent) {
+        paint.scoreGraph(gr);
+    }
+
     // MessageWindowの調整
     if (message_window != "") {
         // message_windowがあればそちらを描画してReturn
@@ -434,7 +441,11 @@ function on_playback_time(time) {
             return;
         }
         difficulty_balancing_check();
+        // 次曲ロード前に吹き出し状態へ戻して答えのチラ見えを防ぐ
+        remain = ultimateCountdown;
+        message_window = String(ultimateCountdown);
         fb.Next();
+        return;
     }
     if (ultimateAutoStop == 0) ultimate_timer++;
     else ultimate_timer--;
@@ -448,6 +459,11 @@ function on_playback_time(time) {
 }
 
 function on_playback_new_track(handle) {
+    if (is_ultimate) {
+        // 下のwindow.Repaint()前に吹き出し状態へ戻して新曲の答えがチラ見えするのを防ぐ
+        remain = ultimateCountdown;
+        message_window = String(remain);
+    }
     if (is_adaptive) {
         if (adaptive_back_zero && adaptive_now[1] > 0 && adaptive_this_q_result < 0) {
             // 誤答で0に戻る
@@ -595,6 +611,11 @@ function on_key_down(vkey) {
         }
         if (ultimate_score_counting_percent) {
             percent_score.correct += 1;
+            // Update last element in history (don't add new element)
+            if (percent_score_history.length > 0) {
+                let percentage = percent_score.total > 0 ? (percent_score.correct / percent_score.total) : 0;
+                percent_score_history[percent_score_history.length - 1] = percentage;
+            }
         }
         if (is_adaptive) {
             adaptive_this_q_result = 1;
@@ -611,7 +632,11 @@ function on_key_down(vkey) {
             ox_score.x += 1;
         }
         if (ultimate_score_counting_percent) {
-            percent_score.total += 1;
+            // Update last element in history to reflect wrong answer
+            if (percent_score_history.length > 0) {
+                let percentage = percent_score.total > 0 ? (percent_score.correct / percent_score.total) : 0;
+                percent_score_history[percent_score_history.length - 1] = percentage;
+            }
         }
         if (is_adaptive) {
             adaptive_this_q_result = -1;
@@ -672,6 +697,7 @@ function on_key_down(vkey) {
         if (ultimate_score_counting_percent) {
             percent_score.correct = 0;
             percent_score.total = 0;
+            percent_score_history = [];
         }
         difficulty_balancing_check();
         fb.Next();
@@ -706,6 +732,7 @@ function on_key_down(vkey) {
         if (ultimate_score_counting_percent) {
             percent_score.correct = 0;
             percent_score.total = 0;
+            percent_score_history = [];
             window.Repaint();
         }
     }
@@ -733,9 +760,10 @@ function on_main_menu(idx) {
 //
 function calc_ultimate_remain(time) {
     remain = Math.floor(ultimateCountdown - (time - start_position));
-    if (remain <= -2 && 5 + remain < ultimate_timer) message_window = (remain + 5);
+    // Stringify so "0" != "" — bare Number(0) is `== ""` and would skip the bubble, leaking the answer.
+    if (remain <= -2 && 5 + remain < ultimate_timer) message_window = String(remain + 5);
     else if (remain <= 0) message_window = "";
-    else message_window = remain;
+    else message_window = String(remain);
 
     window.Repaint();
 }
@@ -1151,6 +1179,9 @@ function ultimate_open() {
 
     if (ultimate_score_counting_percent) {
         percent_score.total += 1;
+        // Add current percentage to history
+        let percentage = percent_score.total > 0 ? (percent_score.correct / percent_score.total) : 0;
+        percent_score_history.push(percentage);
     }
 
     // when (autoCopy == start) || (autoCopy == on && !is_ultimate )
